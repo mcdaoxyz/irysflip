@@ -1,12 +1,12 @@
-# Coinflip OKX + Irys
+# Irysflip
 
-MVP Coinflip game dengan login OKX Wallet & integrasi Irys.
+MVP Coinflip game yang terintegrasi Irys.
 
 ## Cara Pakai
 
 1. Jalankan `npm install`
 2. Jalankan `npm start`
-3. Login dengan OKX Wallet (pastikan sudah install & login extension OKX Wallet di browser)
+3. Login dengan wallet
 4. Main Coinflip & histori dicatat ke Irys
 
 ## Deploy
