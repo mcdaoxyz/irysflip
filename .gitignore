@@ -1,3 +1,61 @@
+# Node modules (WAJIB, jangan pernah di-commit)
 node_modules/
+
+# Output build/production (folder hasil build)
 build/
+dist/
+.next/
+out/
+
+# Testing coverage
+coverage/
+
+# Editor & system files
+.DS_Store
+Thumbs.db
+*.log
+*.tmp
+
+# Local env file (JANGAN upload env asli ke github public)
 .env
+.env.*
+!.env.example
+
+# IDE & editor settings
+.vscode/
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+
+# npm & yarn lock files (jika pakai salah satu saja)
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Mac system files
+*.DS_Store
+
+# Vercel & Netlify local
+.vercel/
+.netlify/
+
+# Typescript build (jika ada)
+*.tsbuildinfo
+
+# Others
+*.local
+*.cache
+.cache/
+*.swp
+
+# Optional: jika pakai Linux/macOS
+*.pid
+
+# Lint hasil auto-fix
+eslintcache
+
+# Optional: Hasil build custom (jika pakai framework tertentu)
+*.out/
