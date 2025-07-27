@@ -1,6 +1,35 @@
 import React, { useState } from "react";
 import { ethers } from "ethers";
 
+export default function ConnectWallet({ setProvider, setSigner, setUserAddress }) {
+  const [error, setError] = useState(null);
+
+  const connect = async () => {
+    if (!window.ethereum) {
+      setError("MetaMask tidak ditemukan!");
+      return;
+    }
+    try {
+      const provider = new ethers.providers.Web3Provider(window.ethereum);
+      await provider.send("eth_requestAccounts", []);
+      const signer = provider.getSigner();
+      const address = await signer.getAddress();
+      setProvider(provider);
+      setSigner(signer);
+      setUserAddress(address);
+      setError(null);
+    } catch (e) {
+      setError(e.message);
+    }
+  };
+
+  return (
+    <div>
+      <button onClick={connect}>Connect Wallet</button>
+      {error && <div style={{color:"red"}}>{error}</div>}
+    </div>
+  );
+}
 export default function Login({ onLogin }) {
   const [loading, setLoading] = useState(false);
 
