@@ -1,0 +1,54 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+body {
+  background-color: #222;
+  background-image: url("data:image/svg+xml,%3Csvg width='16' height='16' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Crect width='2' height='2' fill='%23333'/%3E%3C/svg%3E");
+  image-rendering: pixelated;
+}
+
+
+.pixel-card {
+  border: 4px solid #fff05a;
+  background: #232044;
+  box-shadow: 0 8px 0 #181422;
+  padding: 2rem;
+  margin: 2rem auto;
+  max-width: 400px;
+  min-width: 280px;
+  border-radius: 0px;
+  font-family: 'Press Start 2P', Arial, monospace;
+}
+
+.pixel-btn {
+  border: 3px solid #0aff9d;
+  background: #0aff9d;
+  color: #232044;
+  font-family: 'Press Start 2P', Arial, monospace;
+  font-size: 1.1rem;
+  margin: 1rem 0.3rem;
+  padding: 0.7rem 1.6rem;
+  box-shadow: 0 4px 0 #0b7a51;
+  cursor: pointer;
+  border-radius: 0px;
+  transition: transform 0.07s;
+}
+
+.pixel-btn:active {
+  box-shadow: 0 2px 0 #0b7a51;
+  transform: translateY(2px);
+}
+
+.pixel-input {
+  border: 3px solid #fff05a;
+  background: #232044;
+  color: #fff;
+  font-family: 'Press Start 2P', Arial, monospace;
+  padding: 0.6rem;
+  font-size: 1.1rem;
+  margin-top: 1rem;
+  margin-bottom: 1rem;
+  border-radius: 0px;
+  outline: none;
+}
