@@ -1,18 +1,18 @@
 # Irysflip
 
-MVP Coinflip game yang terintegrasi Irys.
+MVP Coinflip game integrated with Irys.
 
-## Cara Pakai
+## How to Use
 
-1. Jalankan `npm install`
-2. Jalankan `npm start`
-3. Login dengan wallet
-4. Main Coinflip & histori dicatat ke Irys
+1. Run `npm install`
+2. Run `npm start`
+3. Log in with your wallet
+4. Play Coinflip & history is recorded to Irys
 
 ## Deploy
 
-- Support Vercel & Netlify (cukup klik import dari GitHub)
+- Supports Vercel & Netlify (simply click import from GitHub)
 
-## Catatan
-- Saldo dummy (belum real onchain)
-- Pastikan OKX Wallet extension aktif
+## Notes
+- Dummy balance (not yet real on-chain)
+- Ensure the OKX Wallet extension is active
