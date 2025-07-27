@@ -1,35 +1,6 @@
 import React, { useState } from "react";
 import { ethers } from "ethers";
 
-export default function ConnectWallet({ setProvider, setSigner, setUserAddress }) {
-  const [error, setError] = useState(null);
-
-  const connect = async () => {
-    if (!window.ethereum) {
-      setError("MetaMask tidak ditemukan!");
-      return;
-    }
-    try {
-      const provider = new ethers.providers.Web3Provider(window.ethereum);
-      await provider.send("eth_requestAccounts", []);
-      const signer = provider.getSigner();
-      const address = await signer.getAddress();
-      setProvider(provider);
-      setSigner(signer);
-      setUserAddress(address);
-      setError(null);
-    } catch (e) {
-      setError(e.message);
-    }
-  };
-
-  return (
-    <div>
-      <button onClick={connect}>Connect Wallet</button>
-      {error && <div style={{color:"red"}}>{error}</div>}
-    </div>
-  );
-}
 export default function Login({ onLogin }) {
   const [loading, setLoading] = useState(false);
 
@@ -38,13 +9,20 @@ export default function Login({ onLogin }) {
     try {
       if (!window.ethereum) throw new Error("Wallet not found");
       const provider = new ethers.providers.Web3Provider(window.ethereum);
+
+      // WAJIB request account connect (agar user approve wallet dulu)
+      await provider.send("eth_requestAccounts", []);
+
       const signer = await provider.getSigner();
       const address = await signer.getAddress();
+
       setLoading(false);
       onLogin({ provider, signer, address });
     } catch (e) {
       setLoading(false);
-      alert(e.message);
+      // Tampilkan error detail di alert dan console
+      console.error("Connect Wallet Error:", e);
+      alert(e?.message || JSON.stringify(e) || "Unexpected error, check console");
     }
   };
 
@@ -62,7 +40,7 @@ export default function Login({ onLogin }) {
         position: "relative",
       }}
     >
-      {/* Optional overlay supaya teks/card tetap jelas */}
+      {/* Overlay */}
       <div
         style={{
           position: "absolute",
@@ -72,7 +50,7 @@ export default function Login({ onLogin }) {
           zIndex: 0,
         }}
       ></div>
-      {/* Konten login */}
+      {/* Card login */}
       <div
         style={{
           position: "relative",
@@ -87,18 +65,25 @@ export default function Login({ onLogin }) {
           boxShadow: "0 4px 0 #222",
         }}
       >
-       <h1 style={{
-  color: "#fff",
-  fontSize: "2rem",
-  letterSpacing: "0.14em",
-  marginBottom: 10,
-  textShadow: "2px 2px 0 #111, 0 0 14px #39ff14"
-}}>
-  IRYSFLIP
-</h1>
+        <h1 style={{
+          color: "#fff",
+          fontSize: "2rem",
+          letterSpacing: "0.14em",
+          marginBottom: 10,
+          textShadow: "2px 2px 0 #111, 0 0 14px #39ff14"
+        }}>
+          IRYSFLIP
+        </h1>
 
-
-
+        <div style={{
+          fontFamily: "'Press Start 2P', monospace",
+          fontSize: 19,
+          marginBottom: 14,
+          color: "#fff",
+          textShadow: "0 0 14px #111"
+        }}>
+          Flip your luck, win on datachain!
+        </div>
 
         <button
           onClick={handleLogin}
@@ -117,45 +102,29 @@ export default function Login({ onLogin }) {
             opacity: loading ? 0.7 : 1,
             transition: "0.2s"
           }}
-        >{loading ? "CONNECTING..." : "PLAY"}</button>
-        <div
-          style={{
-            background: "#222c",
-            color: "#fff",
-            fontFamily: "'VT323', monospace",
-            padding: "10px 0 0",
-            fontSize: "1.06rem"
-          }}
         >
+          {loading ? "CONNECTING..." : "PLAY"}
+        </button>
+
+        <div style={{
+          margin: "18px 0 0",
+          fontSize: 16,
+          color: "#fff"
+        }}>
+          Made with 💚 by{" "}
+          <a
+            href="https://twitter.com/mcdaoxyz"
+            target="_blank"
+            rel="noopener noreferrer"
+            style={{
+              color: "#fff",
+              textDecoration: "underline",
+              fontWeight: 700
+            }}
+          >
+            @mcdaoxyz
+          </a>
         </div>
-        <div style={{
-  fontFamily: "'Press Start 2P', monospace",
-  fontSize: 19,
-  marginBottom: 14,
-  color: "#41ffe8",
-  textShadow: "0 0 14px #23f9be"
-}}>
-  Flip your luck, win on datachain!
-</div>
-        <div style={{
-  margin: "18px 0 0",
-  fontSize: 16,
-  color: "#fff"
-}}>
-  Made with 💚 by{" "}
-  <a
-    href="https://twitter.com/mcdaoxyz"
-    target="_blank"
-    rel="noopener noreferrer"
-    style={{
-      color: "#41ffe8",
-      textDecoration: "underline",
-      fontWeight: 700
-    }}
-  >
-    @mcdaoxyz
-  </a>
-</div>
       </div>
     </div>
   );
