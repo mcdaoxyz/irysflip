@@ -48,6 +48,15 @@ const isModalOpen = useRef(false);
   }
 };
 
+  // Animasi koin flip (pakai CSS rotate)
+  function playCoinAnimation(onEnd) {
+    setAnimating(true);
+    setTimeout(() => {
+      setAnimating(false);
+      onEnd && onEnd();
+    }, 1000);
+  }
+  
   // Handle BET
   const handleBet = async () => {
   if (!signer) return alert("Connect wallet");
@@ -59,6 +68,7 @@ const isModalOpen = useRef(false);
   setLoading(true);
 
   try {
+    playCoinAnimation(async () => {
     playCoinAnimation(async () => {
        // 1️⃣ Switch otomatis ke Irys Testnet
        await switchToIrys();
