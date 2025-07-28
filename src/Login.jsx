@@ -6,31 +6,30 @@ export default function Login({ onLogin }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
-  useEffect(() => {
-    if (typeof window === "undefined") return;
+ useEffect(() => {
+  if (typeof window === 'undefined') return;
 
-    let p = null;
-    if (window.ethereum?.providers?.length) {
-      console.log("Detected providers:", window.ethereum.providers);
-      p =
-        window.ethereum.providers.find((x) => x.isOKExWallet) ||
-        window.ethereum.providers.find((x) => x.isMetaMask) ||
+  let p = null;
+  if (window.ethereum?.providers?.length) {
+    console.log("Detected providers:", window.ethereum.providers);
+    p = window.ethereum.providers.find(x => x.isOKExWallet) ||
+        window.ethereum.providers.find(x => x.isMetaMask) ||
         window.ethereum.providers[0];
-    } else if (window.ethereum) {
-      p = window.ethereum;
-    }
+  } else if (window.ethereum) {
+    p = window.ethereum;
+  }
 
-    if (p) {
-      console.log("Selected provider:", {
-        isMetaMask: p.isMetaMask,
-        isOKExWallet: p.isOKExWallet,
-      });
-      window.ethereum = p;
-      setWallet(p);
-    } else {
-      console.log("No window.ethereum detected");
-    }
-  }, []);
+  if (p) {
+    window.ethereum = p;  // override agar provider valid
+    setWallet(p);
+    console.log("Selected wallet provider:", {
+      isMetaMask: p.isMetaMask,
+      isOKExWallet: p.isOKExWallet
+    });
+  } else {
+    console.log("No injected wallet provider detected");
+  }
+}, []);
 
   const handleLogin = async () => {
     setLoading(true);
@@ -39,7 +38,7 @@ export default function Login({ onLogin }) {
       if (!wallet) throw new Error("Wallet not detected");
       const provider = new ethers.providers.Web3Provider(wallet);
       await provider.send("eth_requestAccounts", []);
-      const signer = provider.getSigner();
+      const signer = provider.getSigner()
       const address = await signer.getAddress();
       setLoading(false);
       onLogin({ provider, signer, address });
