@@ -51,6 +51,12 @@ const isModalOpen = useRef(false);
   // Handle BET
   const handleBet = async () => {
   if (!signer) return alert("Connect wallet");
+     // 1️⃣ Pastikan di jaringan Irys
++  try {
++    await switchToIrysOnly();
++  } catch {
++    return; // abort jika gagal switch
++  }
   isModalOpen.current = true;
   setShowModal(true);
   setModalPhase("submitting");
