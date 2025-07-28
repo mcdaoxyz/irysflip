@@ -11,7 +11,6 @@ export default function DashboardOnchain({ provider, signer, userAddress }) {
   const [amount, setAmount] = useState(0.1);
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState("");
-  const [animating, setAnimating] = useState(false);
   const [rewardConfirmed, setRewardConfirmed] = useState(false);
   const [lastBetBlock, setLastBetBlock] = useState(null);
   const [betHistory, setBetHistory] = useState([]);
@@ -91,8 +90,6 @@ const isModalOpen = useRef(false);
         setBetResult(null);
         setModalPhase("result");
       }
-
-      setLoading(false);
   } catch (e) {
     if (!isModalOpen.current) return; // <-- Tambahan penting
     setBetResult(null);
@@ -191,17 +188,15 @@ const handleCloseModal = () => {
         {/* Coin Pixel Animasi */}
         <div style={{ margin: "14px auto 16px auto", minHeight: 120 }}>
           <img
-            src="/coin_pixel.png"
-            alt="Coin"
-            style={{
-              width: 120,
-              height: 120,
-              display: "block",
-              imageRendering: "pixelated",
-              transition: "transform 1s cubic-bezier(.68,-0.55,.27,1.55)",
-              transform: animating ? "rotateY(720deg)" : "none"
-            }}
-          />
+          src="/coin_pixel.png"
+          alt="Coin"
+          style={{
+            width: 120,
+            height: 120,
+            display: "block",
+            imageRendering: "pixelated",
+          }}
+       />
         </div>
 
         {/* Heads or tails */}
@@ -305,7 +300,7 @@ const handleCloseModal = () => {
         <div style={{ display: "flex", justifyContent: "center", marginTop: 26 }}>
           <button
             onClick={handleBet}
-            disabled={loading || animating}
+            disabled={loading}
             style={{
               fontFamily: "'Press Start 2P', monospace",
               background: "#ffb04a",
