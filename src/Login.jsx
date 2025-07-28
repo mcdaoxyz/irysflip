@@ -1,8 +1,49 @@
 import React, { useState, useEffect } from "react";
 import { ethers } from "ethers";
-import detectEthereumProvider from "@metamask/detect-provider";
+import detectEthereumProvider from '@metamask/detect-provider';
 
-const IrysNetwork = {
+export default function Login({ onLogin }) {
+  const [wallet, setWallet] = useState(null);      // untuk satu provider
+  const [wallets, setWallets] = useState([]);      // deklarasi state wallets
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+
+ useEffect(() => {
+  if (typeof window === "undefined") return;
+
+  if (window.okxwallet?.isOKExWallet) {
+    window.ethereum = window.okxwallet;
+    setWallet(window.okxwallet);
+    console.log("OKX Wallet detected");
+    return;
+  }
+
+  if (window.ethereum?.isMetaMask) {
+    setWallet(window.ethereum);
+    console.log("MetaMask provider detected");
+    return;
+  }
+
+  if (window.ethereum) {
+    setWallet(window.ethereum);
+    console.log("Generic window.ethereum detected:", window.ethereum);
+    return;
+  }
+
+  // fallback async
+  (async () => {
+    const provider = await detectEthereumProvider({ silent: true });
+    if (provider) {
+      window.ethereum = provider;
+      setWallet(provider);
+      console.log("Detected via detectEthereumProvider:", provider);
+    } else {
+      console.log("No wallet provider detected at all");
+    }
+  })();
+}, []);
+
+ const IrysNetwork = {
   chainId: "0x4FE",
   chainName: "Irys Testnet",
   rpcUrls: ["https://testnet-rpc.irys.xyz/v1/execution-rpc"],
@@ -16,81 +57,42 @@ async function switchToIrys() {
       method: "wallet_switchEthereumChain",
       params: [{ chainId: IrysNetwork.chainId }]
     });
-    console.log("✅ Switched to Irys Testnet");
+    console.log("Switched to Irys Testnet");
   } catch (switchError) {
     if (switchError.code === 4902) {
+      // jika belum ada di wallet, tambahkan dulu
       try {
         await window.ethereum.request({
           method: "wallet_addEthereumChain",
           params: [IrysNetwork]
         });
-        console.log("✅ Irys Testnet added and switched");
+        console.log("Irys Testnet added and switched");
       } catch (addError) {
-        if (addError.code === 4001) {
-          console.warn("⚠️ User rejected adding Irys network.");
-        } else {
-          console.error("❌ Failed to add Irys:", addError);
-        }
+        console.error("Failed to add Irys:", addError);
       }
-    } else if (switchError.code === 4001) {
-      console.warn("⚠️ User rejected network switch.");
     } else {
-      console.error("❌ Failed to switch network:", switchError);
+      console.error("Failed to switch network:", switchError);
     }
   }
-}
-
-export default function Login({ onLogin }) {
-  const [wallet, setWallet] = useState(null);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
-
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-
-    if (window.okxwallet?.isOKExWallet) {
-      console.log("Detected OKX Wallet");
-      window.ethereum = window.okxwallet;
-      setWallet(window.okxwallet);
-    } else if (window.ethereum?.isMetaMask) {
-      console.log("Detected MetaMask");
-      setWallet(window.ethereum);
-    } else if (window.ethereum) {
-      console.log("Detected generic window.ethereum provider");
-      setWallet(window.ethereum);
-    } else {
-      detectEthereumProvider({ silent: true }).then(provider => {
-        if (provider) {
-          window.ethereum = provider;
-          setWallet(provider);
-          console.log("Detected via fallback:", provider);
-        } else {
-          console.log("No wallet provider detected");
-        }
-      });
-    }
-  }, []);
 
   const handleLogin = async () => {
-    setLoading(true);
-    setError("");
-    try {
-      if (!wallet) throw new Error("Wallet not detected");
-      const provider = new ethers.providers.Web3Provider(wallet);
-
-      await provider.send("eth_requestAccounts", []);
-      await switchToIrys();
-
-      const signer = provider.getSigner();
-      const address = await signer.getAddress();
-      onLogin({ provider, signer, address });
-    } catch (e) {
-      setError(e.message || "Unexpected error");
-      console.error("Login error:", e);
-    } finally {
-      setLoading(false);
-    }
-  };
+  setLoading(true);
+  setError("");
+  try {
+    if (!wallet) throw new Error("Wallet not detected");
+    const provider = new ethers.providers.Web3Provider(wallet);
+    await provider.send("eth_requestAccounts", []);
+    await switchToIrys();
+    const signer = provider.getSigner();
+    const address = await signer.getAddress();
+    onLogin({ provider, signer, address });
+  } catch (e) {
+    setError(e.message || "Unexpected error");
+    console.error("Login error:", e);
+  } finally {
+    setLoading(false);
+  }
+};
   return (
     <div
       className="min-h-screen w-full flex flex-col justify-center items-center"
