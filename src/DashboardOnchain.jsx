@@ -71,36 +71,35 @@ const isModalOpen = useRef(false);
 
  try {
     const contract = new ethers.Contract(CONTRACT_ADDRESS, COINFLIP_ABI, signer);
-    const txObj = await contract.flip(choice === "heads", {
-      value: ethers.utils.parseEther(amount.toString()),
-    });
-    const receipt = await txObj.wait();
-    const blockNumber = receipt.blockNumber;
 
-    const events = await contract.queryFilter(
-      contract.filters.BetPlaced(),
-      blockNumber,
-      blockNumber
+      const txObj = await contract.flip(choice === "heads", {
+        value: ethers.utils.parseEther(amount.toString())
+      });
+
+      const receipt = await txObj.wait();
+      const blockNumber = receipt.blockNumber;
+
+      const events = await contract.queryFilter(contract.filters.BetPlaced(), blockNumber, blockNumber);
+
+      const myEvent = events.find(ev => ev.args.player.toLowerCase() === userAddress.toLowerCase());
+
+      if (!isModalOpen.current) return; // <-- Tambahan penting
+
+      if (myEvent) {
+        const win = myEvent.args.win;
+        setBetResult(win ? "win" : "lose");
+        setModalPhase("result");
+        setLastBetBlock(blockNumber);
+        loadHistory();
+      } else {
+        setBetResult(null);
+        setModalPhase("result");
+      }
+
+      setLoading(false);
     );
-    const myEvent = events.find(
-      ev => ev.args.player.toLowerCase() === userAddress.toLowerCase()
-    );
-
-    if (!isModalOpen.current) return;
-
-    if (myEvent) {
-      const win = myEvent.args.win;
-      setBetResult(win ? "win" : "lose");
-      setModalPhase("result");
-      setLastBetBlock(blockNumber);
-      loadHistory();
-    } else {
-      setBetResult(null);
-      setModalPhase("result");
-    }
-    setLoading(false);
   } catch (e) {
-    if (!isModalOpen.current) return;
+    if (!isModalOpen.current) return; // <-- Tambahan penting
     setBetResult(null);
     setModalPhase("result");
     setLoading(false);
