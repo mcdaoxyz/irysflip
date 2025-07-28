@@ -2,34 +2,33 @@ import React, { useState, useEffect } from "react";
 import { ethers } from "ethers";
 
 export default function Login({ onLogin }) {
-  const [wallet, setWallet] = useState(null);
+  const [wallet, setWallet] = useState(null);      // untuk satu provider
+  const [wallets, setWallets] = useState([]);      // deklarasi state wallets
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
- useEffect(() => {
-  if (typeof window === 'undefined') return;
+  useEffect(() => {
+    if (typeof window === "undefined") return;
 
-  let p = null;
-  if (window.ethereum?.providers?.length) {
-    console.log("Detected providers:", window.ethereum.providers);
-    p = window.ethereum.providers.find(x => x.isOKExWallet) ||
-        window.ethereum.providers.find(x => x.isMetaMask) ||
-        window.ethereum.providers[0];
-  } else if (window.ethereum) {
-    p = window.ethereum;
-  }
+    let providersList = [];
+    if (window.ethereum?.providers?.length) {
+      providersList = window.ethereum.providers;
+    } else if (window.ethereum) {
+      providersList = [window.ethereum];
+    }
+    console.log("Detected providers:", providersList);
+    setWallets(providersList);
 
-  if (p) {
-    window.ethereum = p;  // override agar provider valid
-    setWallet(p);
-    console.log("Selected wallet provider:", {
-      isMetaMask: p.isMetaMask,
-      isOKExWallet: p.isOKExWallet
-    });
-  } else {
-    console.log("No injected wallet provider detected");
-  }
-}, []);
+    const p = providersList[0] || null;
+    if (p) {
+      window.ethereum = p;
+      setWallet(p);
+      console.log("Selected provider:", {
+        isMetaMask: Boolean(p.isMetaMask),
+        isOKExWallet: Boolean(p.isOKExWallet),
+      });
+    }
+  }, []);
 
   const handleLogin = async () => {
     setLoading(true);
@@ -38,7 +37,7 @@ export default function Login({ onLogin }) {
       if (!wallet) throw new Error("Wallet not detected");
       const provider = new ethers.providers.Web3Provider(wallet);
       await provider.send("eth_requestAccounts", []);
-      const signer = provider.getSigner()
+      const signer = provider.getSigner();
       const address = await signer.getAddress();
       setLoading(false);
       onLogin({ provider, signer, address });
@@ -51,7 +50,7 @@ export default function Login({ onLogin }) {
         e?.reason ||
         (typeof e === "string" ? e : "Unexpected error");
       setError(msg);
-      console.error("Login error:", e);
+      console.error("Connect Error:", e);
     }
   };
   return (
@@ -207,6 +206,16 @@ export default function Login({ onLogin }) {
             @mcdaoxyz
           </a>
         </div>
+         <div>
+      {wallets.length === 0 ? (
+        <p>No wallet detected</p>
+      ) : (
+        <button onClick={handleLogin} disabled={!wallet || loading}>
+          {loading ? "Connecting..." : "Connect"}
+        </button>
+      )}
+      {error && <p style={{ color: "red" }}>{error}</p>}
+    </div>
       </div>
     </div>
   );
