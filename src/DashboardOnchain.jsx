@@ -47,15 +47,6 @@ const isModalOpen = useRef(false);
     console.error("Gagal memuat history:", error);
   }
 };
-
-  // Animasi koin flip (pakai CSS rotate)
-  function playCoinAnimation(onEnd) {
-    setAnimating(true);
-    setTimeout(() => {
-      setAnimating(false);
-      onEnd && onEnd();
-    }, 1000);
-  }
   
   // Handle BET
   const handleBet = async () => {
@@ -68,10 +59,9 @@ const isModalOpen = useRef(false);
   setLoading(true);
 
   try {
-    playCoinAnimation(async () => {
-    playCoinAnimation(async () => {
        // 1️⃣ Switch otomatis ke Irys Testnet
        await switchToIrys();
+    setStatus("Connected to Irys, preparing transaction...");
       const contract = new ethers.Contract(CONTRACT_ADDRESS, COINFLIP_ABI, signer);
 
       const txObj = await contract.flip(choice === "heads", {
