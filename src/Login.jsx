@@ -60,6 +60,7 @@ async function switchToIrys() {
     console.log("Switched to Irys Testnet");
   } catch (switchError) {
     if (switchError.code === 4902) {
+      // jika belum ada di wallet, tambahkan dulu
       try {
         await window.ethereum.request({
           method: "wallet_addEthereumChain",
@@ -68,13 +69,7 @@ async function switchToIrys() {
         console.log("Irys Testnet added and switched");
       } catch (addError) {
         console.error("Failed to add Irys:", addError);
-        // Jika user menolak add chain
-        if (addError.code === 4001) {
-          console.warn("User rejected to add Irys network.");
-        }
       }
-    } else if (switchError.code === 4001) {
-      console.warn("User rejected to switch network.");
     } else {
       console.error("Failed to switch network:", switchError);
     }
