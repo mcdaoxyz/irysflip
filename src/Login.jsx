@@ -1,28 +1,75 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { ethers } from "ethers";
+
+const WALLET_LIST = [
+  {
+    name: "MetaMask",
+    key: "isMetaMask",
+    logo: "https://raw.githubusercontent.com/MetaMask/brand-resources/master/SVG/metamask-fox.svg"
+  },
+  {
+    name: "OKX Wallet",
+    key: "isOKExWallet",
+    logo: "https://static.okx.com/cdn/assets/imgs/MjAxOTY0NzY2ODMwMg==.png"
+  },
+  {
+    name: "Bitget Wallet",
+    key: "isBitKeep",
+    logo: "https://www.bitget.com/static/bgwallet/favicon.ico"
+  }
+];
 
 export default function Login({ onLogin }) {
   const [loading, setLoading] = useState(false);
+  const [wallets, setWallets] = useState([]);
+  const [error, setError] = useState("");
 
-  const handleLogin = async () => {
+  useEffect(() => {
+    // Deteksi wallet multi-provider (EIP-5749)
+    if (window.ethereum?.providers?.length) {
+      setWallets(window.ethereum.providers);
+    } else if (window.ethereum) {
+      setWallets([window.ethereum]);
+    } else {
+      setWallets([]);
+    }
+  }, []);
+
+  // Dapatkan nama wallet dari objek provider
+  const getWalletName = (provider) => {
+    for (const w of WALLET_LIST) if (provider[w.key]) return w.name;
+    return "Unknown Wallet";
+  };
+  // Dapatkan logo wallet
+  const getWalletLogo = (provider) => {
+    for (const w of WALLET_LIST) if (provider[w.key]) return w.logo;
+    return "";
+  };
+
+  // Fungsi connect untuk wallet tertentu
+  const handleLogin = async (provider) => {
     setLoading(true);
+    setError("");
     try {
-      if (!window.ethereum) throw new Error("Wallet not found");
-      const provider = new ethers.providers.Web3Provider(window.ethereum);
-
-      // WAJIB request account connect (agar user approve wallet dulu)
-      await provider.send("eth_requestAccounts", []);
-
-      const signer = await provider.getSigner();
+      if (!provider) throw new Error("Wallet not found");
+      window.ethereum = provider; // force override jika multi-wallet
+      const ethProvider = new ethers.providers.Web3Provider(provider);
+      await ethProvider.send("eth_requestAccounts", []);
+      const signer = ethProvider.getSigner();
       const address = await signer.getAddress();
-
       setLoading(false);
-      onLogin({ provider, signer, address });
+      onLogin({ provider: ethProvider, signer, address });
     } catch (e) {
       setLoading(false);
-      // Tampilkan error detail di alert dan console
-      console.error("Connect Wallet Error:", e);
-      alert(e?.message || JSON.stringify(e) || "Unexpected error, check console");
+      setError(
+        e?.message ||
+        e?.data?.message ||
+        e?.error?.message ||
+        e?.reason ||
+        JSON.stringify(e) ||
+        "Unexpected error"
+      );
+      console.error("Wallet Connect Error:", e, typeof e, JSON.stringify(e));
     }
   };
 
@@ -40,7 +87,6 @@ export default function Login({ onLogin }) {
         position: "relative",
       }}
     >
-      {/* Overlay */}
       <div
         style={{
           position: "absolute",
@@ -50,7 +96,6 @@ export default function Login({ onLogin }) {
           zIndex: 0,
         }}
       ></div>
-      {/* Card login */}
       <div
         style={{
           position: "relative",
@@ -74,7 +119,6 @@ export default function Login({ onLogin }) {
         }}>
           IRYSFLIP
         </h1>
-
         <div style={{
           fontFamily: "'Press Start 2P', monospace",
           fontSize: 19,
@@ -85,26 +129,81 @@ export default function Login({ onLogin }) {
           Flip your luck, win on datachain!
         </div>
 
-        <button
-          onClick={handleLogin}
-          disabled={loading}
-          style={{
-            fontFamily: "'Press Start 2P', monospace",
-            background: "#14ff94",
-            color: "#111",
-            border: "3px solid #fff",
-            borderRadius: 7,
-            fontSize: "1.3rem",
-            padding: "16px 52px",
-            margin: "20px 0 18px",
-            cursor: loading ? "wait" : "pointer",
-            boxShadow: "0 2px 0 #111",
-            opacity: loading ? 0.7 : 1,
-            transition: "0.2s"
-          }}
-        >
-          {loading ? "CONNECTING..." : "PLAY"}
-        </button>
+        {/* Pilihan Wallet */}
+        {wallets.length > 1 ? (
+          <>
+            <div style={{
+              fontFamily: "'Press Start 2P', monospace",
+              fontSize: 18,
+              color: "#fff",
+              marginBottom: 10,
+              marginTop: 10
+            }}>
+              Select Wallet
+            </div>
+            <div style={{ display: "flex", gap: 20, justifyContent: "center", marginBottom: 20 }}>
+              {wallets.map((provider, idx) => (
+                <button
+                  key={idx}
+                  onClick={() => handleLogin(provider)}
+                  disabled={loading}
+                  style={{
+                    display: "flex",
+                    flexDirection: "column",
+                    alignItems: "center",
+                    background: "#151b22",
+                    border: "2.5px solid #16ffb8",
+                    borderRadius: 14,
+                    padding: "18px 28px",
+                    minWidth: 120,
+                    cursor: loading ? "wait" : "pointer",
+                    opacity: loading ? 0.66 : 1
+                  }}
+                >
+                  <img
+                    src={getWalletLogo(provider)}
+                    alt="wallet"
+                    style={{ width: 44, height: 44, marginBottom: 10, borderRadius: 8, background: "#fff" }}
+                  />
+                  <span style={{ color: "#fff", fontFamily: "monospace", fontSize: 18, marginBottom: 3 }}>
+                    {getWalletName(provider)}
+                  </span>
+                  <span style={{ color: "#16ffb8", fontSize: 11 }}>
+                    {loading ? "CONNECTING..." : "Connect"}
+                  </span>
+                </button>
+              ))}
+            </div>
+          </>
+        ) : (
+          <button
+            onClick={() => handleLogin(wallets[0])}
+            disabled={loading}
+            style={{
+              fontFamily: "'Press Start 2P', monospace",
+              background: "#14ff94",
+              color: "#111",
+              border: "3px solid #fff",
+              borderRadius: 7,
+              fontSize: "1.3rem",
+              padding: "16px 52px",
+              margin: "20px 0 18px",
+              cursor: loading ? "wait" : "pointer",
+              boxShadow: "0 2px 0 #111",
+              opacity: loading ? 0.7 : 1,
+              transition: "0.2s"
+            }}
+          >{loading ? "CONNECTING..." : "PLAY"}</button>
+        )}
+
+        {/* Error message */}
+        {error && <div style={{
+          margin: "12px 0 0",
+          color: "#ff7b7b",
+          fontFamily: "'VT323', monospace",
+          fontSize: "1.1rem",
+          letterSpacing: "0.03em"
+        }}>{error}</div>}
 
         <div style={{
           margin: "18px 0 0",
