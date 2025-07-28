@@ -1,35 +1,25 @@
-// src/utils/network.js
-export const IRYS_PARAMS = {
-  chainId: "0x4FE", // 1270 dalam hex
-  chainName: "Irys Testnet",
-  nativeCurrency: {
-    name: "IRYS",
-    symbol: "IRYS",
-    decimals: 18,
-  },
-  rpcUrls: ["https://testnet-rpc.irys.xyz/v1/execution-rpc"],
-  blockExplorerUrls: ["https://testnet-explorer.irys.xyz"],
-};
+// di utils/network.js
+export const IRYS_CHAIN_ID = "0x4FE"; // 1270 hex
 
-export async function switchToIrys() {
+export async function switchToIrysOnly() {
   if (!window.ethereum) {
     throw new Error("MetaMask tidak terdeteksi");
   }
   try {
-    // Coba switch ke Irys
+    // Cukup switch jaringan
     await window.ethereum.request({
       method: "wallet_switchEthereumChain",
-      params: [{ chainId: IRYS_PARAMS.chainId }],
+      params: [{ chainId: IRYS_CHAIN_ID }],
     });
   } catch (err) {
-    // Jika chain belum ada di MetaMask (error code 4902), tambahkan dulu
+    // 4902: chain belum dikenal oleh MetaMask
     if (err.code === 4902) {
-      await window.ethereum.request({
-        method: "wallet_addEthereumChain",
-        params: [IRYS_PARAMS],
-      });
+      alert("Jaringan Irys Testnet belum ditambahkan di MetaMask.\n" +
+            "Silakan tambahkan secara manual dulu sebelum lanjut.");
     } else {
-      throw err;
+      console.error("Gagal switch jaringan:", err);
+      alert("Error saat switch jaringan: " + err.message || err.code);
     }
+    throw err;
   }
 }
