@@ -43,6 +43,39 @@ export default function Login({ onLogin }) {
   })();
 }, []);
 
+  const IrysNetwork = {
+  chainId: "0x4FE",
+  chainName: "Irys Testnet",
+  rpcUrls: ["https://testnet-rpc.irys.xyz/v1/execution-rpc"],
+  nativeCurrency: { name: "IRYS", symbol: "IRYS", decimals: 18 },
+  blockExplorerUrls: ["https://testnet-explorer.irys.xyz"]
+};
+
+async function switchToIrys() {
+  try {
+    await window.ethereum.request({
+      method: "wallet_switchEthereumChain",
+      params: [{ chainId: IrysNetwork.chainId }]
+    });
+    console.log("Switched to Irys Testnet");
+  } catch (switchError) {
+    if (switchError.code === 4902) {
+      // Jaringan belum ditambahkan → ajak pengguna menambah
+      try {
+        await window.ethereum.request({
+          method: "wallet_addEthereumChain",
+          params: [IrysNetwork]
+        });
+        console.log("Irys Testnet added and switched");
+      } catch (addError) {
+        console.error("Failed to add Irys:", addError);
+      }
+    } else {
+      console.error("Failed to switch:", switchError);
+    }
+  }
+}
+
   const handleLogin = async () => {
   setLoading(true);
   setError("");
@@ -50,6 +83,7 @@ export default function Login({ onLogin }) {
     if (!wallet) throw new Error("Wallet not detected");
     const provider = new ethers.providers.Web3Provider(wallet);
     await provider.send("eth_requestAccounts", []);
+    await switchToIrys(); // pindah jaringan sebelum operasi berikutnya
     const signer = provider.getSigner();
     const address = await signer.getAddress();
     onLogin({ provider, signer, address });
