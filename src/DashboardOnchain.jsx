@@ -50,18 +50,14 @@ const isModalOpen = useRef(false);
   
   // Handle BET
   const handleBet = async () => {
-  if (!signer) {
-    alert("Connect wallet");
-    return;
-  }
-
+   if (!signer) return alert("Connect wallet");
   // 2. Coba switch ke Irys Testnet
   try {
     await switchToIrysOnly();
-  } catch (err) {
-    // abort flow jika gagal switch
-    return;
+  } catch {
+    return; // jangan setLoading(true) sebelum ini
   }
+   setLoading(true);
   isModalOpen.current = true;
   setShowModal(true);
   setModalPhase("submitting");
