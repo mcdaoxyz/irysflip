@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from "react";
 import { ethers } from "ethers";
-import detectEthereumProvider from '@metamask/detect-provider';
 
 const IrysNetwork = {
   chainId: "0x4FE",
