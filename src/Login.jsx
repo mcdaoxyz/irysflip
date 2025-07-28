@@ -43,14 +43,6 @@ export default function Login({ onLogin }) {
   })();
 }, []);
 
- const IrysNetwork = {
-  chainId: "0x4FE",
-  chainName: "Irys Testnet",
-  rpcUrls: ["https://testnet-rpc.irys.xyz/v1/execution-rpc"],
-  nativeCurrency: { name: "IRYS", symbol: "IRYS", decimals: 18 },
-  blockExplorerUrls: ["https://testnet-explorer.irys.xyz"]
-};
-
 async function switchToIrys() {
   try {
     await window.ethereum.request({
