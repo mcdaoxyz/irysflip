@@ -11,20 +11,36 @@ export default function Login({ onLogin }) {
  useEffect(() => {
   if (typeof window === "undefined") return;
 
-  if (window.okxwallet && window.okxwallet.isOKExWallet) {
-    console.log("Detected OKX provider:", window.okxwallet);
+  if (window.okxwallet?.isOKExWallet) {
     window.ethereum = window.okxwallet;
     setWallet(window.okxwallet);
-  } else if (window.ethereum && window.ethereum.isMetaMask) {
-    console.log("Detected MetaMask provider:", window.ethereum);
-    setWallet(window.ethereum);
-  } else if (window.ethereum) {
-    console.log("Detected provider via window.ethereum:", window.ethereum);
-    setWallet(window.ethereum);
-  } else {
-    console.log("No wallet provider detected");
-    setWallet(null);
+    console.log("OKX Wallet detected");
+    return;
   }
+
+  if (window.ethereum?.isMetaMask) {
+    setWallet(window.ethereum);
+    console.log("MetaMask provider detected");
+    return;
+  }
+
+  if (window.ethereum) {
+    setWallet(window.ethereum);
+    console.log("Generic window.ethereum detected:", window.ethereum);
+    return;
+  }
+
+  // fallback async
+  (async () => {
+    const provider = await detectEthereumProvider({ silent: true });
+    if (provider) {
+      window.ethereum = provider;
+      setWallet(provider);
+      console.log("Detected via detectEthereumProvider:", provider);
+    } else {
+      console.log("No wallet provider detected at all");
+    }
+  })();
 }, []);
 
   const handleLogin = async () => {
