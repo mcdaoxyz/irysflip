@@ -1,21 +1,75 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { ethers } from "ethers";
+
+const WALLET_LIST = [
+  {
+    name: "MetaMask",
+    key: "isMetaMask",
+    logo: "https://raw.githubusercontent.com/MetaMask/brand-resources/master/SVG/metamask-fox.svg"
+  },
+  {
+    name: "OKX Wallet",
+    key: "isOKExWallet",
+    logo: "https://static.okx.com/cdn/assets/imgs/MjAxOTY0NzY2ODMwMg==.png"
+  },
+  {
+    name: "Bitget Wallet",
+    key: "isBitKeep",
+    logo: "https://www.bitget.com/static/bgwallet/favicon.ico"
+  }
+];
 
 export default function Login({ onLogin }) {
   const [loading, setLoading] = useState(false);
+  const [wallets, setWallets] = useState([]);
+  const [error, setError] = useState("");
 
-  const handleLogin = async () => {
+  useEffect(() => {
+    // Deteksi wallet multi-provider (EIP-5749)
+    if (window.ethereum?.providers?.length) {
+      setWallets(window.ethereum.providers);
+    } else if (window.ethereum) {
+      setWallets([window.ethereum]);
+    } else {
+      setWallets([]);
+    }
+  }, []);
+
+  // Dapatkan nama wallet dari objek provider
+  const getWalletName = (provider) => {
+    for (const w of WALLET_LIST) if (provider[w.key]) return w.name;
+    return "Unknown Wallet";
+  };
+  // Dapatkan logo wallet
+  const getWalletLogo = (provider) => {
+    for (const w of WALLET_LIST) if (provider[w.key]) return w.logo;
+    return "";
+  };
+
+  // Fungsi connect untuk wallet tertentu
+  const handleLogin = async (provider) => {
     setLoading(true);
+    setError("");
     try {
-      if (!window.ethereum) throw new Error("Wallet not found");
-      const provider = new ethers.providers.Web3Provider(window.ethereum);
-      const signer = await provider.getSigner();
+      if (!provider) throw new Error("Wallet not found");
+      window.ethereum = provider; // force override jika multi-wallet
+      const ethProvider = new ethers.providers.Web3Provider(provider);
+      await ethProvider.send("eth_requestAccounts", []);
+      const signer = ethProvider.getSigner();
       const address = await signer.getAddress();
       setLoading(false);
-      onLogin({ provider, signer, address });
+      onLogin({ provider: ethProvider, signer, address });
     } catch (e) {
       setLoading(false);
-      alert(e.message);
+      setError(
+        e?.message ||
+        e?.data?.message ||
+        e?.error?.message ||
+        e?.reason ||
+        JSON.stringify(e) ||
+        "Unexpected error"
+      );
+      console.error("Wallet Connect Error:", e, typeof e, JSON.stringify(e));
     }
   };
 
