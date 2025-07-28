@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { ethers } from "ethers";
+import WalletConnect from "@walletconnect/client";
+import QRCodeModal from "@walletconnect/qrcode-modal";
 
 const WALLET_LIST = [
   {
@@ -16,6 +18,11 @@ const WALLET_LIST = [
     name: "Bitget Wallet",
     key: "isBitKeep",
     logo: "https://www.bitget.com/static/bgwallet/favicon.ico"
+  },
+  {
+    name: "WalletConnect",
+    key: "isWalletConnect",
+    logo: "https://docs.walletconnect.com/img/walletconnect-logo.svg"
   }
 ];
 
@@ -23,6 +30,7 @@ export default function Login({ onLogin }) {
   const [loading, setLoading] = useState(false);
   const [wallets, setWallets] = useState([]);
   const [error, setError] = useState("");
+  const [connector, setConnector] = useState(null);
 
   useEffect(() => {
     // Deteksi multi-wallet
@@ -31,44 +39,138 @@ export default function Login({ onLogin }) {
     } else if (window.ethereum) {
       setWallets([window.ethereum]);
     } else {
-      setWallets([]);
+      // Jika tidak ada wallet terdeteksi, tetap tampilkan WalletConnect
+      setWallets([{ isWalletConnect: true }]);
     }
+    
+    // Bersihkan session saat komponen unmount
+    return () => {
+      if (connector) {
+        connector.killSession();
+      }
+    };
   }, []);
 
   // Dapatkan nama & logo wallet
   const getWalletName = (provider) => {
-    for (const w of WALLET_LIST) if (provider[w.key]) return w.name;
+    for (const w of WALLET_LIST) {
+      if (provider[w.key] || (w.key === "isWalletConnect" && provider.isWalletConnect)) {
+        return w.name;
+      }
+    }
     return "Unknown Wallet";
   };
+  
   const getWalletLogo = (provider) => {
-    for (const w of WALLET_LIST) if (provider[w.key]) return w.logo;
+    for (const w of WALLET_LIST) {
+      if (provider[w.key] || (w.key === "isWalletConnect" && provider.isWalletConnect)) {
+        return w.logo;
+      }
+    }
     return "";
   };
 
-  // Fungsi connect wallet
-  const handleLogin = async (provider) => {
-    setLoading(true);
-    setError("");
+  // Fungsi connect wallet dengan WalletConnect
+  const connectWithWalletConnect = async () => {
+    try {
+      // Buat konektor baru
+      const newConnector = new WalletConnect({
+        bridge: "https://bridge.walletconnect.org",
+        qrcodeModal: QRCodeModal,
+      });
+
+      setConnector(newConnector);
+
+      // Cek jika koneksi sudah ada
+      if (!newConnector.connected) {
+        await newConnector.createSession();
+      }
+
+      // Subscribe to events
+      newConnector.on("connect", async (error, payload) => {
+        if (error) throw error;
+        
+        const { accounts } = payload.params[0];
+        const address = accounts[0];
+        
+        // Buat custom provider untuk WalletConnect
+        const provider = new ethers.providers.Web3Provider(newConnector);
+        const signer = provider.getSigner();
+        
+        setLoading(false);
+        onLogin({ provider, signer, address });
+      });
+
+      newConnector.on("session_update", (error, payload) => {
+        if (error) throw error;
+      });
+
+      newConnector.on("disconnect", (error) => {
+        if (error) throw error;
+        setError("Wallet disconnected");
+        setLoading(false);
+      });
+    } catch (e) {
+      setLoading(false);
+      handleError(e);
+    }
+  };
+
+  // Fungsi connect wallet biasa
+  const connectStandardWallet = async (provider) => {
     try {
       if (!provider) throw new Error("Wallet not found");
-      window.ethereum = provider; // jika multi-wallet, override dulu
+      
+      // Jika multi-wallet, override window.ethereum
+      if (provider !== window.ethereum) {
+        window.ethereum = provider;
+      }
+      
       const ethProvider = new ethers.providers.Web3Provider(provider);
       await ethProvider.send("eth_requestAccounts", []);
       const signer = ethProvider.getSigner();
       const address = await signer.getAddress();
-      setLoading(false);
+      
       onLogin({ provider: ethProvider, signer, address });
     } catch (e) {
+      handleError(e);
+    }
+  };
+
+  // Fungsi handle error
+  const handleError = (e) => {
+    const msg = 
+      e?.message ||
+      e?.data?.message ||
+      e?.error?.message ||
+      e?.reason ||
+      (typeof e === "string" ? e : "Unexpected error");
+    
+    setError(msg);
+    console.error("Wallet Connect Error:", e);
+    
+    // Reset WalletConnect jika error
+    if (connector) {
+      connector.killSession();
+      setConnector(null);
+    }
+  };
+
+  // Fungsi connect wallet utama
+  const handleLogin = async (provider) => {
+    setLoading(true);
+    setError("");
+    
+    try {
+      if (provider.isWalletConnect) {
+        await connectWithWalletConnect();
+      } else {
+        await connectStandardWallet(provider);
+      }
+    } catch (e) {
+      handleError(e);
+    } finally {
       setLoading(false);
-      // HANYA tampilkan property pesan, JANGAN JSON.stringify objek circular!
-      const msg =
-        e?.message ||
-        e?.data?.message ||
-        e?.error?.message ||
-        e?.reason ||
-        (typeof e === "string" ? e : "Unexpected error");
-      setError(msg);
-      console.error("Wallet Connect Error:", e);
     }
   };
 
@@ -131,70 +233,91 @@ export default function Login({ onLogin }) {
         </div>
 
         {/* Pilihan Wallet */}
-        {wallets.length > 1 ? (
-          <>
+        <div style={{
+          fontFamily: "'Press Start 2P', monospace",
+          fontSize: 18,
+          color: "#fff",
+          marginBottom: 10,
+          marginTop: 10
+        }}>
+          Select Wallet
+        </div>
+        <div style={{ 
+          display: "flex", 
+          gap: 20, 
+          justifyContent: "center", 
+          marginBottom: 20,
+          flexWrap: "wrap"
+        }}>
+          {wallets.map((provider, idx) => (
+            <button
+              key={idx}
+              onClick={() => handleLogin(provider)}
+              disabled={loading}
+              style={{
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "center",
+                background: "#151b22",
+                border: "2.5px solid #16ffb8",
+                borderRadius: 14,
+                padding: "18px 20px",
+                minWidth: 120,
+                cursor: loading ? "wait" : "pointer",
+                opacity: loading ? 0.66 : 1,
+                transition: "transform 0.2s, border-color 0.2s"
+              }}
+              onMouseOver={(e) => e.currentTarget.style.transform = "scale(1.05)"}
+              onMouseOut={(e) => e.currentTarget.style.transform = "scale(1)"}
+            >
+              <img
+                src={getWalletLogo(provider)}
+                alt="wallet"
+                style={{ 
+                  width: 44, 
+                  height: 44, 
+                  marginBottom: 10, 
+                  borderRadius: 8, 
+                  background: "#fff",
+                  objectFit: "contain",
+                  padding: provider.isWalletConnect ? 4 : 0
+                }}
+              />
+              <span style={{ 
+                color: "#fff", 
+                fontFamily: "monospace", 
+                fontSize: 14, 
+                marginBottom: 3 
+              }}>
+                {getWalletName(provider)}
+              </span>
+              <span style={{ 
+                color: "#16ffb8", 
+                fontSize: 11,
+                height: 14
+              }}>
+                {loading ? "CONNECTING..." : "Connect"}
+              </span>
+            </button>
+          ))}
+        </div>
+
+        {/* Loading indicator */}
+        {loading && !error && (
+          <div style={{
+            display: "flex",
+            justifyContent: "center",
+            margin: "10px 0"
+          }}>
             <div style={{
-              fontFamily: "'Press Start 2P', monospace",
-              fontSize: 18,
-              color: "#fff",
-              marginBottom: 10,
-              marginTop: 10
-            }}>
-              Select Wallet
-            </div>
-            <div style={{ display: "flex", gap: 20, justifyContent: "center", marginBottom: 20 }}>
-              {wallets.map((provider, idx) => (
-                <button
-                  key={idx}
-                  onClick={() => handleLogin(provider)}
-                  disabled={loading}
-                  style={{
-                    display: "flex",
-                    flexDirection: "column",
-                    alignItems: "center",
-                    background: "#151b22",
-                    border: "2.5px solid #16ffb8",
-                    borderRadius: 14,
-                    padding: "18px 28px",
-                    minWidth: 120,
-                    cursor: loading ? "wait" : "pointer",
-                    opacity: loading ? 0.66 : 1
-                  }}
-                >
-                  <img
-                    src={getWalletLogo(provider)}
-                    alt="wallet"
-                    style={{ width: 44, height: 44, marginBottom: 10, borderRadius: 8, background: "#fff" }}
-                  />
-                  <span style={{ color: "#fff", fontFamily: "monospace", fontSize: 18, marginBottom: 3 }}>
-                    {getWalletName(provider)}
-                  </span>
-                  <span style={{ color: "#16ffb8", fontSize: 11 }}>
-                    {loading ? "CONNECTING..." : "Connect"}
-                  </span>
-                </button>
-              ))}
-            </div>
-          </>
-        ) : (
-          <button
-            onClick={() => handleLogin(wallets[0])}
-            disabled={loading}
-            style={{
-              fontFamily: "'Press Start 2P', monospace",
-              background: "#14ff94",
-              color: "#111",
-              border: "3px solid #fff",
-              borderRadius: 7,
-              fontSize: "1.3rem",
-              padding: "16px 52px",
-              margin: "20px 0 18px",
-              cursor: loading ? "wait" : "pointer",
-              boxShadow: "0 2px 0 #111",
-              opacity: loading ? 0.7 : 1,
-              transition: "0.2s"
-            }}
-          >{loading ? "CONNECTING..." : "PLAY"}</button>
+              width: 30,
+              height: 30,
+              border: "3px solid rgba(22, 255, 184, 0.3)",
+              borderTop: "3px solid #16ffb8",
+              borderRadius: "50%",
+              animation: "spin 1s linear infinite"
+            }}></div>
+          </div>
         )}
 
         {/* Error message */}
@@ -203,7 +326,8 @@ export default function Login({ onLogin }) {
           color: "#ff7b7b",
           fontFamily: "'VT323', monospace",
           fontSize: "1.1rem",
-          letterSpacing: "0.03em"
+          letterSpacing: "0.03em",
+          minHeight: 24
         }}>{error}</div>}
 
         <div style={{
@@ -226,6 +350,14 @@ export default function Login({ onLogin }) {
           </a>
         </div>
       </div>
+      
+      {/* Animasi spin */}
+      <style>{`
+        @keyframes spin {
+          0% { transform: rotate(0deg); }
+          100% { transform: rotate(360deg); }
+        }
+      `}</style>
     </div>
   );
 }
