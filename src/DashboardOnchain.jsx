@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { ethers } from "ethers";
 import { COINFLIP_ABI } from "./utils/coinflipABI";
+import { switchToIrys } from "./utils/network";
 import ResultModal from "./components/ResultModal";
 
 const CONTRACT_ADDRESS = "0x3ef1a34D98e7Eb2CEB089df23B306328f4a05Aa9";
@@ -47,15 +48,6 @@ const isModalOpen = useRef(false);
   }
 };
 
-  // Animasi koin flip (pakai CSS rotate)
-  function playCoinAnimation(onEnd) {
-    setAnimating(true);
-    setTimeout(() => {
-      setAnimating(false);
-      onEnd && onEnd();
-    }, 1000);
-  }
-
   // Handle BET
   const handleBet = async () => {
   if (!signer) return alert("Connect wallet");
@@ -68,6 +60,8 @@ const isModalOpen = useRef(false);
 
   try {
     playCoinAnimation(async () => {
+       // 1️⃣ Switch otomatis ke Irys Testnet
+       await switchToIrys();
       const contract = new ethers.Contract(CONTRACT_ADDRESS, COINFLIP_ABI, signer);
 
       const txObj = await contract.flip(choice === "heads", {
