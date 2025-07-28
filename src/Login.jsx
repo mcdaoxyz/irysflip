@@ -9,39 +9,41 @@ export default function Login({ onLogin }) {
   const [error, setError] = useState("");
 
  useEffect(() => {
-  (async () => {
-    const provider = await detectEthereumProvider({ silent: true });
-    if (provider) {
-      window.ethereum = provider;
-      setWallet(provider);
-      console.log("Metamask provider detected via fallback");
-    }
-  })();
+  if (typeof window === "undefined") return;
+
+  if (window.okxwallet && window.okxwallet.isOKExWallet) {
+    console.log("Detected OKX provider:", window.okxwallet);
+    window.ethereum = window.okxwallet;
+    setWallet(window.okxwallet);
+  } else if (window.ethereum && window.ethereum.isMetaMask) {
+    console.log("Detected MetaMask provider:", window.ethereum);
+    setWallet(window.ethereum);
+  } else if (window.ethereum) {
+    console.log("Detected provider via window.ethereum:", window.ethereum);
+    setWallet(window.ethereum);
+  } else {
+    console.log("No wallet provider detected");
+    setWallet(null);
+  }
 }, []);
 
   const handleLogin = async () => {
-    setLoading(true);
-    setError("");
-    try {
-      if (!wallet) throw new Error("Wallet not detected");
-      const provider = new ethers.providers.Web3Provider(wallet);
-      await provider.send("eth_requestAccounts", []);
-      const signer = provider.getSigner();
-      const address = await signer.getAddress();
-      setLoading(false);
-      onLogin({ provider, signer, address });
-    } catch (e) {
-      setLoading(false);
-      const msg =
-        e?.message ||
-        e?.data?.message ||
-        e?.error?.message ||
-        e?.reason ||
-        (typeof e === "string" ? e : "Unexpected error");
-      setError(msg);
-      console.error("Connect Error:", e);
-    }
-  };
+  setLoading(true);
+  setError("");
+  try {
+    if (!wallet) throw new Error("Wallet not detected");
+    const provider = new ethers.providers.Web3Provider(wallet);
+    await provider.send("eth_requestAccounts", []);
+    const signer = provider.getSigner();
+    const address = await signer.getAddress();
+    onLogin({ provider, signer, address });
+  } catch (e) {
+    setError(e.message || "Unexpected error");
+    console.error("Login error:", e);
+  } finally {
+    setLoading(false);
+  }
+};
   return (
     <div
       className="min-h-screen w-full flex flex-col justify-center items-center"
