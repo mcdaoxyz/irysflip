@@ -50,13 +50,18 @@ const isModalOpen = useRef(false);
   
   // Handle BET
   const handleBet = async () => {
-  if (!signer) return alert("Connect wallet");
-     // 1️⃣ Pastikan di jaringan Irys
-+  try {
-+    await switchToIrysOnly();
-+  } catch {
-+    return; // abort jika gagal switch
-+  }
+  if (!signer) {
+    alert("Connect wallet");
+    return;
+  }
+
+  // 2. Coba switch ke Irys Testnet
+  try {
+    await switchToIrysOnly();
+  } catch (err) {
+    // abort flow jika gagal switch
+    return;
+  }
   isModalOpen.current = true;
   setShowModal(true);
   setModalPhase("submitting");
@@ -65,8 +70,6 @@ const isModalOpen = useRef(false);
   setLoading(true);
 
   try {
-      { // 1️⃣ Switch otomatis ke Irys Testnet
-       await switchToIrys();
     setStatus("Connected to Irys, preparing transaction...");
       const contract = new ethers.Contract(CONTRACT_ADDRESS, COINFLIP_ABI, signer);
 
