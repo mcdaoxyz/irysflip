@@ -52,7 +52,6 @@ export default function Login({ onLogin }) {
     setError("");
     try {
       if (!provider) throw new Error("Wallet not found");
-      window.ethereum = provider; // force override jika multi-wallet
       const ethProvider = new ethers.providers.Web3Provider(provider);
       await ethProvider.send("eth_requestAccounts", []);
       const signer = ethProvider.getSigner();
