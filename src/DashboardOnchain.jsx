@@ -59,7 +59,7 @@ const isModalOpen = useRef(false);
   setLoading(true);
 
   try {
-       // 1️⃣ Switch otomatis ke Irys Testnet
+      { // 1️⃣ Switch otomatis ke Irys Testnet
        await switchToIrys();
     setStatus("Connected to Irys, preparing transaction...");
       const contract = new ethers.Contract(CONTRACT_ADDRESS, COINFLIP_ABI, signer);
@@ -90,7 +90,6 @@ const isModalOpen = useRef(false);
 
       setLoading(false);
     });
-     setLoading(false);
   } catch (e) {
     if (!isModalOpen.current) return; // <-- Tambahan penting
     setBetResult(null);
