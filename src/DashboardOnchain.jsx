@@ -90,6 +90,7 @@ const isModalOpen = useRef(false);
 
       setLoading(false);
     });
+     setLoading(false);
   } catch (e) {
     if (!isModalOpen.current) return; // <-- Tambahan penting
     setBetResult(null);
