@@ -82,23 +82,23 @@ async function switchToIrys() {
 }
 
   const handleLogin = async () => {
-  setLoading(true);
-  setError("");
-  try {
-    if (!wallet) throw new Error("Wallet not detected");
-    const provider = new ethers.providers.Web3Provider(wallet);
-    await provider.send("eth_requestAccounts", []);
-    await switchToIrys();
-    const signer = provider.getSigner();
-    const address = await signer.getAddress();
-    onLogin({ provider, signer, address });
-  } catch (e) {
-    setError(e.message || "Unexpected error");
-    console.error("Login error:", e);
-  } finally {
-    setLoading(false);
-  }
-};
+    setLoading(true);
+    setError("");
+    try {
+      if (!wallet) throw new Error("Wallet not detected");
+      const provider = new ethers.providers.Web3Provider(wallet);
+      await provider.send("eth_requestAccounts", []);
+      await switchToIrys();
+      const signer = provider.getSigner();
+      const address = await signer.getAddress();
+      onLogin({ provider, signer, address });
+    } catch (e) {
+      setError(e.message || "Unexpected error");
+      console.error("Login error:", e);
+    } finally {
+      setLoading(false);
+    }
+  };
   return (
     <div
       className="min-h-screen w-full flex flex-col justify-center items-center"
