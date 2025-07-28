@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
 import { ethers } from "ethers";
 import { COINFLIP_ABI } from "./utils/coinflipABI";
-import { switchToIrys } from "./utils/network";
 import ResultModal from "./components/ResultModal";
 
 const CONTRACT_ADDRESS = "0x3ef1a34D98e7Eb2CEB089df23B306328f4a05Aa9";
@@ -11,6 +10,7 @@ export default function DashboardOnchain({ provider, signer, userAddress }) {
   const [amount, setAmount] = useState(0.1);
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState("");
+  const [animating, setAnimating] = useState(false);
   const [rewardConfirmed, setRewardConfirmed] = useState(false);
   const [lastBetBlock, setLastBetBlock] = useState(null);
   const [betHistory, setBetHistory] = useState([]);
@@ -46,17 +46,19 @@ const isModalOpen = useRef(false);
     console.error("Gagal memuat history:", error);
   }
 };
-  
+
+  // Animasi koin flip (pakai CSS rotate)
+  function playCoinAnimation(onEnd) {
+    setAnimating(true);
+    setTimeout(() => {
+      setAnimating(false);
+      onEnd && onEnd();
+    }, 1000);
+  }
+
   // Handle BET
   const handleBet = async () => {
-   if (!signer) return alert("Connect wallet");
-  // 2. Coba switch ke Irys Testnet
-  try {
-    await switchToIrysOnly();
-  } catch {
-    return; // jangan setLoading(true) sebelum ini
-  }
-   setLoading(true);
+  if (!signer) return alert("Connect wallet");
   isModalOpen.current = true;
   setShowModal(true);
   setModalPhase("submitting");
@@ -64,8 +66,9 @@ const isModalOpen = useRef(false);
   setLastBetBlock(null);
   setLoading(true);
 
- try {
-    const contract = new ethers.Contract(CONTRACT_ADDRESS, COINFLIP_ABI, signer);
+  try {
+    
+      const contract = new ethers.Contract(CONTRACT_ADDRESS, COINFLIP_ABI, signer);
 
       const txObj = await contract.flip(choice === "heads", {
         value: ethers.utils.parseEther(amount.toString())
@@ -90,6 +93,9 @@ const isModalOpen = useRef(false);
         setBetResult(null);
         setModalPhase("result");
       }
+
+      setLoading(false);
+    
   } catch (e) {
     if (!isModalOpen.current) return; // <-- Tambahan penting
     setBetResult(null);
@@ -188,15 +194,17 @@ const handleCloseModal = () => {
         {/* Coin Pixel Animasi */}
         <div style={{ margin: "14px auto 16px auto", minHeight: 120 }}>
           <img
-          src="/coin_pixel.png"
-          alt="Coin"
-          style={{
-            width: 120,
-            height: 120,
-            display: "block",
-            imageRendering: "pixelated",
-          }}
-       />
+            src="/coin_pixel.png"
+            alt="Coin"
+            style={{
+              width: 120,
+              height: 120,
+              display: "block",
+              imageRendering: "pixelated",
+              transition: "transform 1s cubic-bezier(.68,-0.55,.27,1.55)",
+              transform: animating ? "rotateY(720deg)" : "none"
+            }}
+          />
         </div>
 
         {/* Heads or tails */}
@@ -300,7 +308,7 @@ const handleCloseModal = () => {
         <div style={{ display: "flex", justifyContent: "center", marginTop: 26 }}>
           <button
             onClick={handleBet}
-            disabled={loading}
+            disabled={loading || animating}
             style={{
               fontFamily: "'Press Start 2P', monospace",
               background: "#ffb04a",
