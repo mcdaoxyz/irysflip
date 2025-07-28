@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { ethers } from "ethers";
+import detectEthereumProvider from '@metamask/detect-provider';
 
 export default function Login({ onLogin }) {
   const [wallet, setWallet] = useState(null);      // untuk satu provider
@@ -7,28 +8,16 @@ export default function Login({ onLogin }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-
-    let providersList = [];
-    if (window.ethereum?.providers?.length) {
-      providersList = window.ethereum.providers;
-    } else if (window.ethereum) {
-      providersList = [window.ethereum];
+ useEffect(() => {
+  (async () => {
+    const provider = await detectEthereumProvider({ silent: true });
+    if (provider) {
+      window.ethereum = provider;
+      setWallet(provider);
+      console.log("Metamask provider detected via fallback");
     }
-    console.log("Detected providers:", providersList);
-    setWallets(providersList);
-
-    const p = providersList[0] || null;
-    if (p) {
-      window.ethereum = p;
-      setWallet(p);
-      console.log("Selected provider:", {
-        isMetaMask: Boolean(p.isMetaMask),
-        isOKExWallet: Boolean(p.isOKExWallet),
-      });
-    }
-  }, []);
+  })();
+}, []);
 
   const handleLogin = async () => {
     setLoading(true);
@@ -206,16 +195,6 @@ export default function Login({ onLogin }) {
             @mcdaoxyz
           </a>
         </div>
-         <div>
-      {wallets.length === 0 ? (
-        <p>No wallet detected</p>
-      ) : (
-        <button onClick={handleLogin} disabled={!wallet || loading}>
-          {loading ? "Connecting..." : "Connect"}
-        </button>
-      )}
-      {error && <p style={{ color: "red" }}>{error}</p>}
-    </div>
       </div>
     </div>
   );
