@@ -3,27 +3,21 @@ import Login from "./Login";
 import DashboardOnchain from "./DashboardOnchain";
 
 export default function App() {
-  const [provider, setProvider] = useState(null);
-  const [signer, setSigner] = useState(null);
-  const [userAddress, setUserAddress] = useState(null);
+  const [loggedIn, setLoggedIn] = useState(false);
 
-  const handleLogin = async ({ provider, signer, address }) => {
-    setProvider(provider);
-    setSigner(signer);
-    setUserAddress(address);
+  // Tidak perlu lagi menerima argumen dari Login
+  const handleLogin = () => {
+    setLoggedIn(true);
   };
 
   return (
     <div>
-      {!provider || !signer || !userAddress ? (
+      {!loggedIn ? (
         <Login onLogin={handleLogin} />
       ) : (
-        <DashboardOnchain
-          provider={provider}
-          signer={signer}
-          userAddress={userAddress}
-        />
+        <DashboardOnchain />
       )}
     </div>
   );
 }
+

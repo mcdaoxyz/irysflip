@@ -2,10 +2,20 @@ import React, { useState, useEffect, useRef } from "react";
 import { ethers } from "ethers";
 import { COINFLIP_ABI } from "./utils/coinflipABI";
 import ResultModal from "./components/ResultModal";
+import { WebUploader } from "@irys/web-upload";
+import { WebEthereum } from "@irys/web-upload-ethereum";
+import { EthersV6Adapter } from "@irys/web-upload-ethereum-ethers-v6";
 
 const CONTRACT_ADDRESS = "0x3ef1a34D98e7Eb2CEB089df23B306328f4a05Aa9";
 
-export default function DashboardOnchain({ provider, signer, userAddress }) {
+export default function DashboardOnchain() {
+  // --- Wallet & Irys state ---
+  const [walletAddress, setWalletAddress] = useState(null);
+  const [irysUploader, setIrysUploader] = useState(null);
+  const [provider, setProvider] = useState(null);
+  const [signer, setSigner] = useState(null);
+
+  // --- Game state ---
   const [choice, setChoice] = useState("heads");
   const [amount, setAmount] = useState(0.1);
   const [loading, setLoading] = useState(false);
@@ -16,73 +26,108 @@ export default function DashboardOnchain({ provider, signer, userAddress }) {
   const [betHistory, setBetHistory] = useState([]);
 
   const [showModal, setShowModal] = useState(false);
-const [modalPhase, setModalPhase] = useState("submitting"); // "submitting", "result"
-const [betResult, setBetResult] = useState(null); // "win" | "lose" | null
-const [txid, setTxid] = useState(null);
-const isModalOpen = useRef(false);
-  const [modalOpen, setModalOpen] = useState(false);
-  const [modalResult, setModalResult] = useState("");
+  const [modalPhase, setModalPhase] = useState("submitting");
+  const [betResult, setBetResult] = useState(null);
+  const [txid, setTxid] = useState(null);
+  const isModalOpen = useRef(false);
 
   const fontPixel = { fontFamily: "'Press Start 2P', monospace" };
   const betOptions = [0.01, 0.05, 0.1];
 
-   const loadHistory = async () => {
+  // -------- CONNECT WALLET ala Irys --------
+ const connectWallet = async () => {
+  if (!window.ethereum) {
+    alert("Install MetaMask/EVM wallet!");
+    return;
+  }
+
   try {
-    const contract = new ethers.Contract(CONTRACT_ADDRESS, COINFLIP_ABI, provider);
-    const events = await contract.queryFilter(contract.filters.BetPlaced(), 0, "latest");
+    const provider = new ethers.BrowserProvider(window.ethereum);
+    const chainHex = await window.ethereum.request({ method: "eth_chainId" });
+    const chainId = parseInt(chainHex, 16);
 
-    const userEvents = events
-      .filter(ev => ev.args.player.toLowerCase() === userAddress.toLowerCase())
-      .map(ev => ({
-        block: ev.blockNumber,
-        amount: Number(ethers.utils.formatEther(ev.args.amount)),
-        side: ev.args.side ? "heads" : "tails",
-        win: ev.args.win,
-      }))
-      .reverse();
+    if (chainId !== 1270) {
+      await window.ethereum.request({
+        method: "wallet_switchEthereumChain",
+        params: [{ chainId: "0x4FE" }],
+      });
+    }
 
-    setBetHistory(userEvents);
-  } catch (error) {
-    console.error("Gagal memuat history:", error);
+    await provider.send("eth_requestAccounts", []);
+    console.log("Connected chain:", chainId);
+
+    const signer = await provider.getSigner();
+
+    const irys = await WebUploader(WebEthereum)
+      .withAdapter(EthersV6Adapter(provider))
+      .withRpc("https://testnet-rpc.irys.xyz/v1/execution-rpc")
+      .devnet();
+
+    // Menggunakan address dari Ethers signer
+    const address = await signer.getAddress();
+    console.log("User address:", address);
+
+    setWalletAddress(address);
+    setProvider(provider);
+    setSigner(signer);
+    setIrysUploader(irys);
+  } catch (err) {
+    console.error("ERROR connectWallet:", err);
+    alert("Wallet connect failed: " + (err.message || err));
   }
 };
 
-  // Animasi koin flip (pakai CSS rotate)
-  function playCoinAnimation(onEnd) {
-    setAnimating(true);
-    setTimeout(() => {
-      setAnimating(false);
-      onEnd && onEnd();
-    }, 1000);
-  }
 
-  // Handle BET
+
+
+  const disconnectWallet = () => {
+    setWalletAddress(null);
+    setIrysUploader(null);
+    setProvider(null);
+    setSigner(null);
+  };
+
+  // ----------- LOAD HISTORY -----------
+  const loadHistory = async () => {
+    try {
+      if (!provider || !walletAddress) return;
+      const contract = new ethers.Contract(CONTRACT_ADDRESS, COINFLIP_ABI, provider);
+      const events = await contract.queryFilter(contract.filters.BetPlaced(), 0, "latest");
+      const userEvents = events
+        .filter(ev => ev.args.player.toLowerCase() === walletAddress.toLowerCase())
+        .map(ev => ({
+          block: ev.blockNumber,
+          amount: Number(ethers.formatEther(ev.args.amount)),
+          side: ev.args.side ? "heads" : "tails",
+          win: ev.args.win,
+        }))
+        .reverse();
+      setBetHistory(userEvents);
+    } catch (error) {
+      console.error("Gagal memuat history:", error);
+    }
+  };
+
+  // ----------- HANDLE BET -----------
   const handleBet = async () => {
-  if (!signer) return alert("Connect wallet");
-  isModalOpen.current = true;
-  setShowModal(true);
-  setModalPhase("submitting");
-  setBetResult(null);
-  setLastBetBlock(null);
-  setLoading(true);
+    if (!signer) return alert("Connect wallet");
+    isModalOpen.current = true;
+    setShowModal(true);
+    setModalPhase("submitting");
+    setBetResult(null);
+    setLastBetBlock(null);
+    setLoading(true);
 
-  try {
-    
+    try {
       const contract = new ethers.Contract(CONTRACT_ADDRESS, COINFLIP_ABI, signer);
-
       const txObj = await contract.flip(choice === "heads", {
-        value: ethers.utils.parseEther(amount.toString())
+        value: ethers.parseEther(amount.toString())
       });
-
       const receipt = await txObj.wait();
       const blockNumber = receipt.blockNumber;
-
       const events = await contract.queryFilter(contract.filters.BetPlaced(), blockNumber, blockNumber);
-
-      const myEvent = events.find(ev => ev.args.player.toLowerCase() === userAddress.toLowerCase());
-
-      if (!isModalOpen.current) return; // <-- Tambahan penting
-
+      const myEvent = events.find(ev => ev.args.player.toLowerCase() === walletAddress.toLowerCase());
+      if (!isModalOpen.current) return;
       if (myEvent) {
         const win = myEvent.args.win;
         setBetResult(win ? "win" : "lose");
@@ -93,31 +138,33 @@ const isModalOpen = useRef(false);
         setBetResult(null);
         setModalPhase("result");
       }
-
       setLoading(false);
-    
-  } catch (e) {
-    if (!isModalOpen.current) return; // <-- Tambahan penting
-    setBetResult(null);
-    setModalPhase("result");
-    setLoading(false);
-  }
-};
+    } catch (e) {
+      if (!isModalOpen.current) return;
+      setBetResult(null);
+      setModalPhase("result");
+      setLoading(false);
+    }
+  };
 
-const handleCloseModal = () => {
-  setShowModal(false);
-  setLoading(false);
-  setModalPhase("submitting");
-  setBetResult(null);
-  setTxid(null);
-  setLastBetBlock(null);
-  isModalOpen.current = false; // <-- Tambahan penting
-};
- useEffect(() => {
-    if (provider && userAddress) {
+  const handleCloseModal = () => {
+    setShowModal(false);
+    setLoading(false);
+    setModalPhase("submitting");
+    setBetResult(null);
+    setTxid(null);
+    setLastBetBlock(null);
+    isModalOpen.current = false;
+  };
+
+  useEffect(() => {
+    if (provider && walletAddress) {
       loadHistory();
     }
-  }, [provider, userAddress]);
+    // eslint-disable-next-line
+  }, [provider, walletAddress]);
+
+  // --------- UI -----------
   return (
     <div
       className="min-h-screen flex flex-col justify-center items-center px-2"
@@ -175,7 +222,7 @@ const handleCloseModal = () => {
         }}>
           play
         </div>
-        {/* Wallet Address */}
+        {/* Wallet Address & Button */}
         <div style={{
           ...fontPixel,
           color: "#16f06c",
@@ -184,12 +231,59 @@ const handleCloseModal = () => {
           marginBottom: 5,
           marginTop: 6,
           letterSpacing: "0.08em",
-          width: "100%"
+          width: "100%",
+          display: "flex",
+          alignItems: "center",
+          gap: 10,
         }}>
-          {userAddress && (
-            <>Wallet: {userAddress.slice(0, 7)}...{userAddress.slice(-4)}</>
-          )}
-        </div>
+          {walletAddress ? (
+    <>
+      <span>
+        Wallet: {walletAddress.slice(0, 7)}...{walletAddress.slice(-4)}
+      </span>
+      <button
+        onClick={disconnectWallet}
+        style={{
+          marginLeft: 10,
+          fontFamily: "'Press Start 2P', monospace",
+          fontSize: 11,
+          background: "#222",
+          color: "#16f06c",
+          border: "2px solid #16f06c",
+          borderRadius: 6,
+          padding: "5px 12px",
+          cursor: "pointer",
+          boxShadow: "0 2px 0 #111",
+          transition: "0.2s",
+        }}
+        onMouseDown={e => e.currentTarget.style.boxShadow = "none"}
+        onMouseUp={e => e.currentTarget.style.boxShadow = "0 2px 0 #111"}
+      >
+        Disconnect
+      </button>
+    </>
+  ) : (
+    <button
+      onClick={connectWallet}
+      style={{
+        fontFamily: "'Press Start 2P', monospace",
+        fontSize: 11,
+        background: "#222",
+        color: "#16f06c",
+        border: "2px solid #16f06c",
+        borderRadius: 6,
+        padding: "5px 12px",
+        cursor: "pointer",
+        boxShadow: "0 2px 0 #111",
+        transition: "0.2s",
+      }}
+      onMouseDown={e => e.currentTarget.style.boxShadow = "none"}
+      onMouseUp={e => e.currentTarget.style.boxShadow = "0 2px 0 #111"}
+    >
+      Connect Wallet
+    </button>
+  )}
+</div>
 
         {/* Coin Pixel Animasi */}
         <div style={{ margin: "14px auto 16px auto", minHeight: 120 }}>
@@ -308,7 +402,7 @@ const handleCloseModal = () => {
         <div style={{ display: "flex", justifyContent: "center", marginTop: 26 }}>
           <button
             onClick={handleBet}
-            disabled={loading || animating}
+            disabled={loading || animating || !walletAddress}
             style={{
               fontFamily: "'Press Start 2P', monospace",
               background: "#ffb04a",
@@ -318,7 +412,7 @@ const handleCloseModal = () => {
               fontSize: 32,
               minWidth: 180,
               padding: "12px 0",
-              cursor: loading ? "wait" : "pointer",
+              cursor: loading ? "wait" : !walletAddress ? "not-allowed" : "pointer",
               boxShadow: "0 2px 0 #111",
               opacity: loading ? 0.7 : 1,
               transition: "0.2s",
@@ -329,49 +423,61 @@ const handleCloseModal = () => {
           </button>
         </div>
       </div>
-     {/* Riwayat Taruhan */}
-{betHistory.length > 0 && (
+      {/* Riwayat Taruhan */}
+{walletAddress && betHistory.length > 0 && (
   <div
     style={{
       width: "100%",
       display: "flex",
       justifyContent: "center",
-      marginTop: 16,
-      marginLeft: "auto",
-      marginRight: "auto"
+      marginTop: 20,
+      padding: "0 8px",
     }}
   >
     <div
       style={{
-        background: "rgba(0,0,0,0.38)",
+        background: "rgba(0,0,0,0.6)",
         borderRadius: 10,
-        padding: "12px 30px",
-        fontFamily: "'Fira Mono', 'Consolas', 'Courier New', monospace",
-        fontSize: "18px",
-        color: "#fff",
-        lineHeight: "1.32em",
-        letterSpacing: "0.03em",
         width: "100%",
-        maxWidth: 500,  // SAMAKAN dengan card utama
-        minWidth: 0,
-        whiteSpace: "pre",
+        maxWidth: 520,
+        padding: "16px",
+        fontFamily: "'Press Start 2P', monospace",
+        fontSize: "14px",
+        color: "#16f06c",
+        lineHeight: "1.5em",
+        letterSpacing: "0.06em",
         textAlign: "left",
-        boxShadow: "0 0 10px #0007",
+        boxShadow: "0 0 16px #16f06c66",
         boxSizing: "border-box",
-        margin: "0 auto" // FULL tengah
       }}
     >
       {betHistory.slice(0, 10).map((entry, idx) => {
-        const wallet = `${userAddress.slice(0, 7)}...${userAddress.slice(-4)}`;
-        const amount = entry.amount.toFixed(2).padEnd(5, " ");
-        const side = entry.side.padEnd(6, " ");
+        const display = `${walletAddress.slice(0,7)}…${walletAddress.slice(-4)}`;
+        const amount = entry.amount.toFixed(2);
+        const side = entry.side.toUpperCase();
         const result = entry.win
-          ? <span style={{color: "#10ff10", fontWeight: 600}}>WIN </span>
-          : <span style={{color: "#ff5555", fontWeight: 600}}>LOSE</span>;
-        const block = entry.block.toString().padStart(6, " ");
+          ? <span style={{ color: "#10ff10", fontWeight: 700 }}>WIN</span>
+          : <span style={{ color: "#ff5555", fontWeight: 700 }}>LOSE</span>;
+        const block = entry.block.toString();
+
         return (
-          <div key={idx}>
-            {wallet} {amount} {side}{result}{block}
+          <div
+            key={idx}
+            style={{
+              padding: "2px 0",
+              borderBottom: idx < betHistory.length - 1 ? "1px solid #16f06c33" : "none",
+              display: "flex",
+              justifyContent: "space-between",
+            }}
+          >
+            <span>{display}</span>
+            <span>{amount} IRYS</span>
+            <span>{side}</span>
+            <span>{result}</span>
+            <span style={{ color: "#aaa", cursor: "pointer", textDecoration: "underline" }}
+  onClick={() => window.open(`https://testnet-explorer.irys.xyz/block/${block}`, "_blank")}>
+  {block}
+</span>
           </div>
         );
       })}
@@ -379,17 +485,16 @@ const handleCloseModal = () => {
   </div>
 )}
 
-
       {/* ResultModal */}
-     {showModal && (
-  <ResultModal
-    phase={modalPhase}
-    winner={betResult === "win"}
-    onClose={handleCloseModal}
-    score={null}
-    txid={txid}
-  />
-)}
+      {showModal && (
+        <ResultModal
+          phase={modalPhase}
+          winner={betResult === "win"}
+          onClose={handleCloseModal}
+          score={null}
+          txid={txid}
+        />
+      )}
     </div>
   );
 }
