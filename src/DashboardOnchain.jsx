@@ -3,6 +3,8 @@ import { ethers } from "ethers";
 import { COINFLIP_ABI } from "./utils/coinflipABI";
 import ResultModal from "./components/ResultModal";
 import WalletSelector from "./components/WalletSelector";
+import GasFeeInfo from "./components/GasFeeInfo";
+import { createEnhancedTxOptions, formatGasFee, compareGasFees } from "./utils/gasUtils";
 import { WebUploader } from "@irys/web-upload";
 import { WebEthereum } from "@irys/web-upload-ethereum";
 import { EthersV6Adapter } from "@irys/web-upload-ethereum-ethers-v6";
@@ -31,6 +33,8 @@ export default function DashboardOnchain() {
   const [betResult, setBetResult] = useState(null);
   const [txid, setTxid] = useState(null);
   const [showWalletSelector, setShowWalletSelector] = useState(false);
+  const [gasFeeInfo, setGasFeeInfo] = useState(null);
+  const [gasMultiplier, setGasMultiplier] = useState(1.5);
   const isModalOpen = useRef(false);
 
   const fontPixel = { fontFamily: "'Press Start 2P', monospace" };
@@ -106,9 +110,27 @@ export default function DashboardOnchain() {
 
     try {
       const contract = new ethers.Contract(CONTRACT_ADDRESS, COINFLIP_ABI, signer);
-      const txObj = await contract.flip(choice === "heads", {
-        value: ethers.parseEther(amount.toString())
-      });
+      
+      // Buat transaction options dengan gas fee yang ditingkatkan
+      const txOptions = await createEnhancedTxOptions(
+        provider, 
+        contract, 
+        'flip', 
+        [choice === "heads"], 
+        {
+          value: ethers.parseEther(amount.toString()),
+          gasMultiplier: gasMultiplier
+        }
+      );
+      
+      console.log('Enhanced gas fee:', formatGasFee(txOptions));
+      console.log('Gas multiplier used:', gasMultiplier + 'x');
+      console.log('Transaction options:', txOptions);
+      
+      // Simpan gas fee info untuk ditampilkan di modal
+      setGasFeeInfo(txOptions);
+      
+      const txObj = await contract.flip(choice === "heads", txOptions);
       const receipt = await txObj.wait();
       const blockNumber = receipt.blockNumber;
       const events = await contract.queryFilter(contract.filters.BetPlaced(), blockNumber, blockNumber);
@@ -293,6 +315,46 @@ export default function DashboardOnchain() {
           onWalletConnected={connectWallet}
           onClose={() => setShowWalletSelector(false)}
         />
+      )}
+
+      {/* Gas Fee Settings */}
+      {walletAddress && (
+        <>
+          <GasFeeInfo 
+            provider={provider} 
+            gasMultiplier={gasMultiplier}
+            onFeeUpdate={(feeInfo) => setGasFeeInfo(feeInfo)}
+          />
+          <div style={{ marginBottom: 20, padding: "10px", background: "#1a1a1a", borderRadius: 8, border: "1px solid #333" }}>
+            <div style={{ ...fontPixel, fontSize: 12, color: "#fff", marginBottom: 8, textAlign: "center" }}>
+              Gas Fee Multiplier: {gasMultiplier}x
+            </div>
+            <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
+              <input
+                type="range"
+                min="1.0"
+                max="3.0"
+                step="0.1"
+                value={gasMultiplier}
+                onChange={(e) => setGasMultiplier(parseFloat(e.target.value))}
+                style={{
+                  flex: 1,
+                  height: 6,
+                  background: "#333",
+                  borderRadius: 3,
+                  outline: "none",
+                  cursor: "pointer"
+                }}
+              />
+              <span style={{ ...fontPixel, fontSize: 10, color: "#16f06c", minWidth: 40 }}>
+                {gasMultiplier}x
+              </span>
+            </div>
+            <div style={{ ...fontPixel, fontSize: 9, color: "#888", textAlign: "center" }}>
+              Higher gas fee = faster transaction
+            </div>
+          </div>
+        </>
       )}
 
         {/* Heads or tails */}
@@ -487,6 +549,7 @@ export default function DashboardOnchain() {
           onClose={handleCloseModal}
           score={null}
           txid={txid}
+          gasFeeInfo={gasFeeInfo}
         />
       )}
     </div>
