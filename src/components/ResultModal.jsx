@@ -1,6 +1,7 @@
 import React from "react";
+import { ethers } from "ethers";
 
-export default function ResultModal({ phase, score, winner, onClose, txid }) {
+export default function ResultModal({ phase, score, winner, onClose, txid, gasFeeInfo }) {
   return (
     <div
       style={{
@@ -124,6 +125,38 @@ export default function ResultModal({ phase, score, winner, onClose, txid }) {
         {(phase === "submitting" || phase === "saved") && (
           <div style={{ margin: "28px auto 6px auto" }}>
             <div className="loading-anim" />
+          </div>
+        )}
+
+        {/* Gas Fee Info */}
+        {gasFeeInfo && (
+          <div style={{ 
+            marginTop: 12, 
+            padding: "8px 12px", 
+            background: "#1a1a1a", 
+            borderRadius: 6,
+            border: "1px solid #333",
+            fontSize: "10px",
+            fontFamily: "'Press Start 2P', monospace"
+          }}>
+            <div style={{ color: "#16f06c", marginBottom: "4px" }}>
+              Gas Fee Used: {gasFeeInfo.maxFeePerGas ? 
+                `${Math.round(Number(ethers.formatUnits(gasFeeInfo.maxFeePerGas, 'gwei')))} gwei` :
+                gasFeeInfo.gasPrice ? 
+                `${Math.round(Number(ethers.formatUnits(gasFeeInfo.gasPrice, 'gwei')))} gwei` :
+                'Unknown'
+              }
+            </div>
+            {gasFeeInfo.originalFeeData && (
+              <div style={{ color: "#888", fontSize: "9px" }}>
+                Original: {gasFeeInfo.originalFeeData.maxFeePerGas ? 
+                  `${Math.round(Number(ethers.formatUnits(gasFeeInfo.originalFeeData.maxFeePerGas, 'gwei')))} gwei` :
+                  gasFeeInfo.originalFeeData.gasPrice ? 
+                  `${Math.round(Number(ethers.formatUnits(gasFeeInfo.originalFeeData.gasPrice, 'gwei')))} gwei` :
+                  'Unknown'
+                }
+              </div>
+            )}
           </div>
         )}
 
