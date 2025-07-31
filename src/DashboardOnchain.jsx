@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from "react";
 import { ethers } from "ethers";
 import { COINFLIP_ABI } from "./utils/coinflipABI";
 import ResultModal from "./components/ResultModal";
+import WalletSelector from "./components/WalletSelector";
 import { WebUploader } from "@irys/web-upload";
 import { WebEthereum } from "@irys/web-upload-ethereum";
 import { EthersV6Adapter } from "@irys/web-upload-ethereum-ethers-v6";
@@ -29,53 +30,38 @@ export default function DashboardOnchain() {
   const [modalPhase, setModalPhase] = useState("submitting");
   const [betResult, setBetResult] = useState(null);
   const [txid, setTxid] = useState(null);
+  const [showWalletSelector, setShowWalletSelector] = useState(false);
   const isModalOpen = useRef(false);
 
   const fontPixel = { fontFamily: "'Press Start 2P', monospace" };
   const betOptions = [0.01, 0.05, 0.1];
 
-  // -------- CONNECT WALLET ala Irys --------
- const connectWallet = async () => {
-  if (!window.ethereum) {
-    alert("Install MetaMask/EVM wallet!");
-    return;
-  }
+  // -------- CONNECT WALLET dengan multi-wallet support --------
+  const connectWallet = async (walletResult) => {
+    try {
+      const { provider, signer, address } = walletResult;
+      
+      const irys = await WebUploader(WebEthereum)
+        .withAdapter(EthersV6Adapter(provider))
+        .withRpc("https://testnet-rpc.irys.xyz/v1/execution-rpc")
+        .devnet();
 
-  try {
-    const provider = new ethers.BrowserProvider(window.ethereum);
-    const chainHex = await window.ethereum.request({ method: "eth_chainId" });
-    const chainId = parseInt(chainHex, 16);
+      console.log("User address:", address);
 
-    if (chainId !== 1270) {
-      await window.ethereum.request({
-        method: "wallet_switchEthereumChain",
-        params: [{ chainId: "0x4FE" }],
-      });
+      setWalletAddress(address);
+      setProvider(provider);
+      setSigner(signer);
+      setIrysUploader(irys);
+      setShowWalletSelector(false);
+    } catch (err) {
+      console.error("ERROR connectWallet:", err);
+      alert("Wallet connect failed: " + (err.message || err));
     }
+  };
 
-    await provider.send("eth_requestAccounts", []);
-    console.log("Connected chain:", chainId);
-
-    const signer = await provider.getSigner();
-
-    const irys = await WebUploader(WebEthereum)
-      .withAdapter(EthersV6Adapter(provider))
-      .withRpc("https://testnet-rpc.irys.xyz/v1/execution-rpc")
-      .devnet();
-
-    // Menggunakan address dari Ethers signer
-    const address = await signer.getAddress();
-    console.log("User address:", address);
-
-    setWalletAddress(address);
-    setProvider(provider);
-    setSigner(signer);
-    setIrysUploader(irys);
-  } catch (err) {
-    console.error("ERROR connectWallet:", err);
-    alert("Wallet connect failed: " + (err.message || err));
-  }
-};
+  const handleShowWalletSelector = () => {
+    setShowWalletSelector(true);
+  };
 
 
 
@@ -264,7 +250,7 @@ export default function DashboardOnchain() {
     </>
   ) : (
     <button
-      onClick={connectWallet}
+      onClick={handleShowWalletSelector}
       style={{
         fontFamily: "'Press Start 2P', monospace",
         fontSize: 11,
@@ -285,21 +271,29 @@ export default function DashboardOnchain() {
   )}
 </div>
 
-        {/* Coin Pixel Animasi */}
-        <div style={{ margin: "14px auto 16px auto", minHeight: 120 }}>
-          <img
-            src="/coin_pixel.png"
-            alt="Coin"
-            style={{
-              width: 120,
-              height: 120,
-              display: "block",
-              imageRendering: "pixelated",
-              transition: "transform 1s cubic-bezier(.68,-0.55,.27,1.55)",
-              transform: animating ? "rotateY(720deg)" : "none"
-            }}
-          />
-        </div>
+              {/* Coin Pixel Animasi */}
+      <div style={{ margin: "14px auto 16px auto", minHeight: 120 }}>
+        <img
+          src="/coin_pixel.png"
+          alt="Coin"
+          style={{
+            width: 120,
+            height: 120,
+            display: "block",
+            imageRendering: "pixelated",
+            transition: "transform 1s cubic-bezier(.68,-0.55,.27,1.55)",
+            transform: animating ? "rotateY(720deg)" : "none"
+          }}
+        />
+      </div>
+
+      {/* Wallet Selector Modal */}
+      {showWalletSelector && (
+        <WalletSelector
+          onWalletConnected={connectWallet}
+          onClose={() => setShowWalletSelector(false)}
+        />
+      )}
 
         {/* Heads or tails */}
         <div style={{ ...fontPixel, margin: "10px 0 6px", fontSize: 15, color: "#fff", textAlign: "center" }}>
