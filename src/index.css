@@ -8,6 +8,35 @@ body {
   image-rendering: pixelated;
 }
 
+/* Animations */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.7;
+  }
+}
+
+@keyframes glow {
+  0%, 100% {
+    box-shadow: 0 0 5px #16f06c;
+  }
+  50% {
+    box-shadow: 0 0 20px #16f06c, 0 0 30px #16f06c;
+  }
+}
 
 .pixel-card {
   border: 4px solid #fff05a;
@@ -51,4 +80,94 @@ body {
   margin-bottom: 1rem;
   border-radius: 0px;
   outline: none;
+}
+
+/* Loading animation */
+.loading-anim {
+  width: 40px;
+  height: 40px;
+  border: 4px solid #333;
+  border-top: 4px solid #16f06c;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+  margin: 0 auto;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+/* Room status indicators */
+.room-waiting {
+  background: linear-gradient(135deg, #1a1a1a 0%, #2a2a2a 100%);
+  border-left: 4px solid #16f06c;
+}
+
+.room-playing {
+  background: linear-gradient(135deg, #2a1a1a 0%, #3a2a2a 100%);
+  border-left: 4px solid #ff4444;
+}
+
+.room-full {
+  background: linear-gradient(135deg, #1a1a1a 0%, #2a2a2a 100%);
+  border-left: 4px solid #666;
+  opacity: 0.6;
+}
+
+/* Player status indicators */
+.player-ready {
+  background: #16f06c;
+  color: #111;
+  animation: pulse 2s infinite;
+}
+
+.player-waiting {
+  background: #666;
+  color: #fff;
+}
+
+/* Game timer progress */
+.timer-progress {
+  background: linear-gradient(90deg, #16f06c 0%, #14ff94 100%);
+  transition: width 1s linear;
+}
+
+/* Quick action buttons */
+.quick-action {
+  transition: all 0.2s ease;
+}
+
+.quick-action:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 8px rgba(22, 240, 108, 0.3);
+}
+
+/* Stats panel */
+.stats-panel {
+  background: linear-gradient(135deg, #1a1a1a 0%, #2a2a2a 100%);
+  border: 2px solid #333;
+  border-radius: 8px;
+  padding: 12px;
+}
+
+.stats-item {
+  text-align: center;
+  transition: all 0.3s ease;
+}
+
+.stats-item:hover {
+  transform: scale(1.05);
+}
+
+/* Betting history animation */
+.bet-history-item {
+  animation: fadeIn 0.5s ease-in;
+}
+
+/* Mode toggle hover effect */
+.mode-toggle:hover {
+  background: #14ff94 !important;
+  transform: scale(1.05);
+  box-shadow: 0 0 15px rgba(22, 240, 108, 0.5);
 }

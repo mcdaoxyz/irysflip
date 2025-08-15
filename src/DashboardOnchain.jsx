@@ -4,19 +4,45 @@ import { COINFLIP_ABI } from "./utils/coinflipABI";
 import ResultModal from "./components/ResultModal";
 import WalletSelector from "./components/WalletSelector";
 import GasFeeInfo from "./components/GasFeeInfo";
+import MultiPlayerLobby from "./components/MultiPlayerLobby";
+import MultiPlayerRoom from "./components/MultiPlayerRoom";
 import { createEnhancedTxOptions, formatGasFee, compareGasFees } from "./utils/gasUtils";
+import { clearAllLocalQuestData } from "./utils/clearLocalData";
+import { createBotPlayers } from "./utils/botSystem";
 import { WebUploader } from "@irys/web-upload";
 import { WebEthereum } from "@irys/web-upload-ethereum";
 import { EthersV6Adapter } from "@irys/web-upload-ethereum-ethers-v6";
 
-const CONTRACT_ADDRESS = "0x3ef1a34D98e7Eb2CEB089df23B306328f4a05Aa9";
+const CONTRACT_ADDRESS = "0xC9F9A1e0C2822663e31c0fCdF46aF0dc10081423";
 
-export default function DashboardOnchain() {
+export default function DashboardOnchain({ 
+  onGoToQuest, 
+  onGoToHistory,
+  onWalletConnected, 
+  onWalletDisconnected,
+  walletAddress: propWalletAddress,
+  walletProvider: propWalletProvider,
+  walletSigner: propWalletSigner,
+  irysUploader: propIrysUploader,
+
+}) {
   // --- Wallet & Irys state ---
-  const [walletAddress, setWalletAddress] = useState(null);
-  const [irysUploader, setIrysUploader] = useState(null);
-  const [provider, setProvider] = useState(null);
-  const [signer, setSigner] = useState(null);
+  const [walletAddress, setWalletAddress] = useState(propWalletAddress);
+  const [irysUploader, setIrysUploader] = useState(propIrysUploader);
+  const [provider, setProvider] = useState(propWalletProvider);
+  const [signer, setSigner] = useState(propWalletSigner);
+
+  // --- Game mode state ---
+  const [gameMode, setGameMode] = useState("SINGLE");
+  const [currentRoom, setCurrentRoom] = useState(null);
+
+  // Update local state when props change
+  useEffect(() => {
+    setWalletAddress(propWalletAddress);
+    setProvider(propWalletProvider);
+    setSigner(propWalletSigner);
+    setIrysUploader(propIrysUploader);
+  }, [propWalletAddress, propWalletProvider, propWalletSigner, propIrysUploader]);
 
   // --- Game state ---
   const [choice, setChoice] = useState("heads");
@@ -26,7 +52,6 @@ export default function DashboardOnchain() {
   const [animating, setAnimating] = useState(false);
   const [rewardConfirmed, setRewardConfirmed] = useState(false);
   const [lastBetBlock, setLastBetBlock] = useState(null);
-  const [betHistory, setBetHistory] = useState([]);
 
   const [showModal, setShowModal] = useState(false);
   const [modalPhase, setModalPhase] = useState("submitting");
@@ -44,63 +69,89 @@ export default function DashboardOnchain() {
   const connectWallet = async (walletResult) => {
     try {
       const { provider, signer, address } = walletResult;
-      
-      const irys = await WebUploader(WebEthereum)
-        .withAdapter(EthersV6Adapter(provider))
-        .withRpc("https://testnet-rpc.irys.xyz/v1/execution-rpc")
-        .devnet();
 
-      console.log("User address:", address);
-
-      setWalletAddress(address);
-      setProvider(provider);
-      setSigner(signer);
-      setIrysUploader(irys);
-      setShowWalletSelector(false);
-    } catch (err) {
-      console.error("ERROR connectWallet:", err);
-      alert("Wallet connect failed: " + (err.message || err));
+    // Initialize Irys uploader with proper configuration
+    let irys = null;
+    try {
+      // For now, skip Irys uploader to avoid compatibility issues
+      console.log("Irys uploader temporarily disabled for compatibility");
+    } catch (irysError) {
+      console.warn("Irys uploader initialization failed, continuing without it:", irysError);
     }
-  };
+
+    console.log("User address:", address);
+
+    setWalletAddress(address);
+    setProvider(provider);
+    setSigner(signer);
+    setIrysUploader(irys);
+      setShowWalletSelector(false);
+      
+      // Notify parent component about wallet connection
+      if (onWalletConnected) {
+        onWalletConnected(address, provider, signer, irys);
+      }
+      
+
+  } catch (err) {
+    console.error("ERROR connectWallet:", err);
+    alert("Wallet connect failed: " + (err.message || err));
+  }
+};
 
   const handleShowWalletSelector = () => {
+    console.log("Wallet selector button clicked");
     setShowWalletSelector(true);
   };
 
 
 
+  // Multi-player handlers
+  const handleCreateRoom = (roomData) => {
+    // Add bot players if room has bots
+    if (roomData.hasBots && roomData.botCount > 0) {
+      roomData.botPlayers = createBotPlayers(roomData.botCount, roomData.botDifficulty);
+    }
+    setCurrentRoom(roomData);
+  };
+
+  const handleJoinRoom = (room) => {
+    setCurrentRoom(room);
+  };
+
+  const handleLeaveRoom = () => {
+    setCurrentRoom(null);
+  };
+
+  const handleBackToSingle = () => {
+    setGameMode("SINGLE");
+    setCurrentRoom(null);
+  };
 
   const disconnectWallet = () => {
     setWalletAddress(null);
     setIrysUploader(null);
     setProvider(null);
     setSigner(null);
-  };
-
-  // ----------- LOAD HISTORY -----------
-  const loadHistory = async () => {
-    try {
-      if (!provider || !walletAddress) return;
-      const contract = new ethers.Contract(CONTRACT_ADDRESS, COINFLIP_ABI, provider);
-      const events = await contract.queryFilter(contract.filters.BetPlaced(), 0, "latest");
-      const userEvents = events
-        .filter(ev => ev.args.player.toLowerCase() === walletAddress.toLowerCase())
-        .map(ev => ({
-          block: ev.blockNumber,
-          amount: Number(ethers.formatEther(ev.args.amount)),
-          side: ev.args.side ? "heads" : "tails",
-          win: ev.args.win,
-        }))
-        .reverse();
-      setBetHistory(userEvents);
-    } catch (error) {
-      console.error("Gagal memuat history:", error);
+    
+    // Notify parent component about wallet disconnection
+    if (onWalletDisconnected) {
+      onWalletDisconnected();
     }
   };
+
+
 
   // ----------- HANDLE BET -----------
   const handleBet = async () => {
     if (!signer) return alert("Connect wallet");
+    
+    // Validate bet amount
+    if (amount < 0.001 || amount > 0.1) {
+      alert("Bet amount must be between 0.001 and 0.1 IRYS");
+      return;
+    }
+    
     isModalOpen.current = true;
     setShowModal(true);
     setModalPhase("submitting");
@@ -132,6 +183,8 @@ export default function DashboardOnchain() {
       
       const txObj = await contract.flip(choice === "heads", txOptions);
       const receipt = await txObj.wait();
+      
+
       const blockNumber = receipt.blockNumber;
       const events = await contract.queryFilter(contract.filters.BetPlaced(), blockNumber, blockNumber);
       const myEvent = events.find(ev => ev.args.player.toLowerCase() === walletAddress.toLowerCase());
@@ -141,7 +194,19 @@ export default function DashboardOnchain() {
         setBetResult(win ? "win" : "lose");
         setModalPhase("result");
         setLastBetBlock(blockNumber);
-        loadHistory();
+        
+        // Quest tracking is now fully automatic through smart contract
+        // No need to manually record flips - the contract handles everything
+        console.log('Flip completed - quest progress updated automatically on smart contract');
+        
+        // Debug smart contract quest status after flip
+        if (walletAddress) {
+          import('./utils/questSystem.js').then(({ debugQuestStatus }) => {
+            debugQuestStatus(walletAddress).then(status => {
+              console.log('=== Smart contract quest status after flip ===', status);
+            });
+          });
+        }
       } else {
         setBetResult(null);
         setModalPhase("result");
@@ -165,17 +230,26 @@ export default function DashboardOnchain() {
     isModalOpen.current = false;
   };
 
+
+
+  // Clear any local quest data on component mount to ensure we use smart contract data only
   useEffect(() => {
-    if (provider && walletAddress) {
-      loadHistory();
+    if (walletAddress) {
+      try {
+        clearAllLocalQuestData();
+        console.log('Local quest data cleared - using smart contract data only');
+      } catch (error) {
+        console.warn('Failed to clear local quest data:', error);
+      }
     }
-    // eslint-disable-next-line
-  }, [provider, walletAddress]);
+  }, [walletAddress]);
+
+
 
   // --------- UI -----------
   return (
     <div
-      className="min-h-screen flex flex-col justify-center items-center px-2"
+      className="min-h-screen flex flex-col"
       style={{
         backgroundImage: "url('/pixel-landscape.jpg')",
         backgroundSize: "cover",
@@ -198,38 +272,408 @@ export default function DashboardOnchain() {
         }}
       ></div>
 
-      {/* CARD UTAMA */}
+      {/* Multi Mode Header */}
+      {gameMode === "MULTI" && (
+        <div style={{
+          position: "relative",
+          zIndex: 10,
+          background: "#151515ee",
+          borderBottom: "2px solid #333",
+          padding: "12px 20px",
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          width: "100%",
+          boxSizing: "border-box"
+        }}>
+          {/* Left side: Logo and Mode Switch */}
+          <div style={{
+            display: "flex",
+            alignItems: "center",
+            gap: "20px"
+          }}>
+            {/* Logo */}
+            <div style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "8px"
+            }}>
+              <img 
+                src="/irys.gif" 
+                alt="Irys" 
+                style={{
+                  width: "24px",
+                  height: "24px",
+                  imageRendering: "pixelated"
+                }}
+              />
+              <span style={{
+                color: "#fff",
+                fontSize: "16px",
+                fontWeight: "bold",
+                fontFamily: "'Press Start 2P', monospace"
+              }}>
+                Irys
+              </span>
+            </div>
+
+            {/* Mode Switch */}
+            <div style={{
+              display: "flex",
+              background: "#222",
+              borderRadius: "8px",
+              padding: "2px",
+              border: "1px solid #333"
+            }}>
+              <button
+                onClick={() => setGameMode("SINGLE")}
+                style={{
+                  background: gameMode === "SINGLE" ? "#16f06c" : "transparent",
+                  color: gameMode === "SINGLE" ? "#111" : "#fff",
+                  border: "none",
+                  borderRadius: "6px",
+                  padding: "6px 12px",
+                  fontSize: "10px",
+                  fontFamily: "'Press Start 2P', monospace",
+                  fontWeight: "bold",
+                  cursor: "pointer",
+                  transition: "all 0.2s",
+                  minWidth: "60px"
+                }}
+              >
+                Lite
+              </button>
+              <button
+                disabled
+                style={{
+                  background: "transparent",
+                  color: "#666",
+                  border: "1px solid #444",
+                  borderRadius: "6px",
+                  padding: "6px 12px",
+                  fontSize: "10px",
+                  fontFamily: "'Press Start 2P', monospace",
+                  fontWeight: "bold",
+                  cursor: "not-allowed",
+                  transition: "all 0.2s",
+                  minWidth: "60px",
+                  opacity: 0.5,
+                  filter: "blur(0.5px)",
+                  position: "relative"
+                }}
+              >
+                <div style={{
+                  position: "absolute",
+                  top: "-20px",
+                  left: "50%",
+                  transform: "translateX(-50%)",
+                  background: "#ffb04a",
+                  color: "#111",
+                  fontSize: "8px",
+                  padding: "2px 6px",
+                  borderRadius: "4px",
+                  whiteSpace: "nowrap",
+                  zIndex: 10
+                }}>
+                  COMING SOON
+                </div>
+                Pro
+              </button>
+            </div>
+          </div>
+
+          {/* Center: Multi Mode Navigation */}
+          <div style={{
+            display: "flex",
+            alignItems: "center",
+            gap: "20px"
+          }}>
+            <span style={{
+              color: "#16f06c",
+              fontSize: "12px",
+              fontFamily: "'Press Start 2P', monospace",
+              cursor: "pointer"
+            }}>
+              Multi Player Mode
+            </span>
+            <div style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "4px",
+              cursor: "pointer"
+            }}>
+              <span style={{
+                color: "#888",
+                fontSize: "12px",
+                fontFamily: "'Press Start 2P', monospace"
+              }}>
+                Lobby
+              </span>
+            </div>
+            {currentRoom && (
+              <div style={{
+                display: "flex",
+                alignItems: "center",
+                gap: "4px",
+                cursor: "pointer"
+              }}>
+                <span style={{
+                  color: "#ffb04a",
+                  fontSize: "12px",
+                  fontFamily: "'Press Start 2P', monospace"
+                }}>
+                  Room: {currentRoom.name || "Game Room"}
+                </span>
+              </div>
+            )}
+          </div>
+
+          {/* Right side: Connect Wallet Button */}
+          <div>
+            {!walletAddress ? (
+              <button
+                onClick={handleShowWalletSelector}
+                style={{
+                  fontFamily: "'Press Start 2P', monospace",
+                  fontSize: "10px",
+                  background: "#222",
+                  color: "#fff",
+                  border: "1px solid #333",
+                  borderRadius: 6,
+                  padding: "8px 16px",
+                  cursor: "pointer",
+                  transition: "0.2s"
+                }}
+                onMouseEnter={e => e.currentTarget.style.background = "#333"}
+                onMouseLeave={e => e.currentTarget.style.background = "#222"}
+              >
+                Connect wallet
+              </button>
+            ) : (
+              <div style={{
+                display: "flex",
+                alignItems: "center",
+                gap: "10px"
+              }}>
+                <span style={{
+                  color: "#16f06c",
+                  fontSize: "10px",
+                  fontFamily: "'Press Start 2P', monospace"
+                }}>
+                  {walletAddress.slice(0, 7)}...{walletAddress.slice(-4)}
+                </span>
+                <button
+                  onClick={disconnectWallet}
+                  style={{
+                    fontFamily: "'Press Start 2P', monospace",
+                    fontSize: "8px",
+                    background: "#ff4444",
+                    color: "#fff",
+                    border: "1px solid #ff4444",
+                    borderRadius: 4,
+                    padding: "4px 8px",
+                    cursor: "pointer",
+                    transition: "0.2s"
+                  }}
+                  onMouseEnter={e => e.currentTarget.style.background = "#ff6666"}
+                  onMouseLeave={e => e.currentTarget.style.background = "#ff4444"}
+                >
+                  Disconnect
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Main Content Area */}
+      <div style={{
+        flex: 1,
+        display: "flex",
+        justifyContent: "center",
+        alignItems: "center",
+        padding: "20px"
+      }}>
+
+      {/* Multi-player Mode */}
+      {gameMode === "MULTI" && (
+        <div style={{ position: "relative", zIndex: 1, width: "100%", maxWidth: "800px" }}>
+          
+          {currentRoom ? (
+            <MultiPlayerRoom
+              room={currentRoom}
+              walletAddress={walletAddress}
+              onLeaveRoom={handleLeaveRoom}
+              onBet={handleBet}
+              onBackToSingle={handleBackToSingle}
+              provider={provider}
+              signer={signer}
+            />
+          ) : (
+            <MultiPlayerLobby
+              walletAddress={walletAddress}
+              onJoinRoom={handleJoinRoom}
+              onCreateRoom={handleCreateRoom}
+              onBackToSingle={handleBackToSingle}
+            />
+          )}
+        </div>
+      )}
+
+      {/* Single Player Mode */}
+      {gameMode === "SINGLE" && (
       <div
         style={{
           position: "relative",
           zIndex: 1,
-          background: "#151515ee",
-          border: "4px solid #444",
-          borderRadius: 12,
-          boxShadow: "0 6px 0 #222",
-          maxWidth: 500,
-          width: "96vw",
+          maxWidth: 610,
+          width: "100vw",
           margin: "34px auto 18px auto",
-          padding: "26px 34px 28px 34px",
           display: "flex",
           flexDirection: "column",
           alignItems: "center"
         }}
       >
-        {/* Judul */}
+        {/* Holder/Container Bar - like the second image */}
         <div style={{
-          ...fontPixel,
-          color: "#fff",
-          fontSize: 24,
-          letterSpacing: 1,
-          marginBottom: 12,
-          borderBottom: "3px solid #333",
-          paddingBottom: 8,
-          textAlign: "left",
-          width: "100%"
-        }}>
-          play
-        </div>
+          width: "100%",
+          height: "4px",
+          background: "linear-gradient(90deg, #2d4a2d 0%, #4a6b4a 50%, #2d4a2d 100%)",
+          borderTop: "1px solid #1a2a1a",
+          borderBottom: "1px solid #3a5a3a",
+          marginBottom: "0px",
+          borderRadius: "2px 2px 0 0"
+        }}></div>
+        
+        <div
+  style={{
+    background: "#151515ee",
+    border: "4px solid #444",
+    borderRadius: "0 0 12px 12px",
+    boxShadow: "0 6px 0 #222",
+    width: "100%",
+    padding: "26px 34px",        // Hilangkan padding bawah berlebihan
+    display: "flex",
+    flexDirection: "column",
+    alignItems: "center",
+    height: "auto",              // Pastikan tinggi mengikuti konten
+    boxSizing: "border-box"
+  }}
+>
+          {/* Header with Logo and Mode Switch - integrated from first image */}
+          <div style={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            width: "100%",
+            marginBottom: "20px"
+          }}>
+            {/* Left side: Logo and Mode Switch */}
+            <div style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "20px"
+            }}>
+              {/* Logo */}
+              <div style={{
+                display: "flex",
+                alignItems: "center",
+                gap: "8px"
+              }}>
+                <img 
+                  src="/irys.gif" 
+                  alt="Irys" 
+                  style={{
+                    width: "24px",
+                    height: "24px",
+                    imageRendering: "pixelated"
+                  }}
+                />
+                <span style={{
+                  color: "#fff",
+                  fontSize: "16px",
+                  fontWeight: "bold",
+                  fontFamily: "'Press Start 2P', monospace"
+                }}>
+                  IrysFlip
+                </span>
+              </div>
+
+              {/* Mode Switch */}
+              <div style={{
+                display: "flex",
+                background: "#222",
+                borderRadius: "8px",
+                padding: "2px",
+                border: "1px solid #333"
+              }}>
+                <button
+                  onClick={() => setGameMode("SINGLE")}
+                  style={{
+                    background: gameMode === "SINGLE" ? "#16f06c" : "transparent",
+                    color: gameMode === "SINGLE" ? "#111" : "#fff",
+                    border: "none",
+                    borderRadius: "6px",
+                    padding: "6px 12px",
+                    fontSize: "10px",
+                    fontFamily: "'Press Start 2P', monospace",
+                    fontWeight: "bold",
+                    cursor: "pointer",
+                    transition: "all 0.2s",
+                    minWidth: "60px"
+                  }}
+                >
+                  Lite
+                </button>
+                <button
+                  disabled
+                  style={{
+                    background: "transparent",
+                    color: "#666",
+                    border: "1px solid #444",
+                    borderRadius: "6px",
+                    padding: "6px 12px",
+                    fontSize: "10px",
+                    fontFamily: "'Press Start 2P', monospace",
+                    fontWeight: "bold",
+                    cursor: "not-allowed",
+                    transition: "all 0.2s",
+                    minWidth: "60px",
+                    opacity: 0.5,
+                    filter: "blur(0.5px)",
+                    position: "relative"
+                  }}
+                >
+                  <div style={{
+                    position: "absolute",
+                    top: "-20px",
+                    left: "50%",
+                    transform: "translateX(-50%)",
+                    background: "#ffb04a",
+                    color: "#111",
+                    fontSize: "8px",
+                    padding: "2px 6px",
+                    borderRadius: "4px",
+                    whiteSpace: "nowrap",
+                    zIndex: 10
+                  }}>
+                    COMING SOON
+                  </div>
+                  Pro
+                </button>
+              </div>
+            </div>
+          </div>
+
+       
+          {/* Header Divider Line */}
+          <div style={{
+            width: "100%",
+            height: "2px",
+            background: "linear-gradient(90deg, transparent 0%, #444 20%, #444 80%, transparent 100%)",
+            marginBottom: "20px"
+          }}></div>
+
         {/* Wallet Address & Button */}
         <div style={{
           ...fontPixel,
@@ -243,16 +687,22 @@ export default function DashboardOnchain() {
           display: "flex",
           alignItems: "center",
           gap: 10,
+          position: "relative",
+          zIndex: 5,
+          pointerEvents: "auto"
         }}>
           {walletAddress ? (
     <>
-      <span>
+      <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+        <span style={{ fontSize: "11px", color: "#fff" }}>
         Wallet: {walletAddress.slice(0, 7)}...{walletAddress.slice(-4)}
       </span>
+
+      </div>
+      <div style={{ display: "flex", gap: "10px", alignItems: "center", marginLeft: 10 }}>
       <button
         onClick={disconnectWallet}
         style={{
-          marginLeft: 10,
           fontFamily: "'Press Start 2P', monospace",
           fontSize: 11,
           background: "#222",
@@ -269,6 +719,46 @@ export default function DashboardOnchain() {
       >
         Disconnect
       </button>
+        
+        <button
+          onClick={onGoToQuest}
+          style={{
+            fontFamily: "'Press Start 2P', monospace",
+            fontSize: 11,
+            background: "#222",
+            color: "#16f06c",
+            border: "2px solid #16f06c",
+            borderRadius: 6,
+            padding: "5px 12px",
+            cursor: "pointer",
+            boxShadow: "0 2px 0 #111",
+            transition: "0.2s",
+          }}
+          onMouseDown={e => e.currentTarget.style.boxShadow = "none"}
+          onMouseUp={e => e.currentTarget.style.boxShadow = "0 2px 0 #111"}
+        >
+          🎯 QUEST
+        </button>
+        <button
+          onClick={onGoToHistory}
+          style={{
+            fontFamily: "'Press Start 2P', monospace",
+            fontSize: 11,
+            background: "#222",
+            color: "#16f06c",
+            border: "2px solid #16f06c",
+            borderRadius: 6,
+            padding: "5px 12px",
+            cursor: "pointer",
+            boxShadow: "0 2px 0 #111",
+            transition: "0.2s",
+          }}
+          onMouseDown={e => e.currentTarget.style.boxShadow = "none"}
+          onMouseUp={e => e.currentTarget.style.boxShadow = "0 2px 0 #111"}
+        >
+          📊 HISTORY
+        </button>
+      </div>
     </>
   ) : (
     <button
@@ -284,6 +774,9 @@ export default function DashboardOnchain() {
         cursor: "pointer",
         boxShadow: "0 2px 0 #111",
         transition: "0.2s",
+        position: "relative",
+        zIndex: 10,
+        pointerEvents: "auto"
       }}
       onMouseDown={e => e.currentTarget.style.boxShadow = "none"}
       onMouseUp={e => e.currentTarget.style.boxShadow = "0 2px 0 #111"}
@@ -293,69 +786,61 @@ export default function DashboardOnchain() {
   )}
 </div>
 
-              {/* Coin Pixel Animasi */}
-      <div style={{ margin: "14px auto 16px auto", minHeight: 120 }}>
-        <img
-          src="/coin_pixel.png"
-          alt="Coin"
-          style={{
-            width: 120,
-            height: 120,
-            display: "block",
-            imageRendering: "pixelated",
-            transition: "transform 1s cubic-bezier(.68,-0.55,.27,1.55)",
-            transform: animating ? "rotateY(720deg)" : "none"
-          }}
-        />
-      </div>
-
-      {/* Wallet Selector Modal */}
-      {showWalletSelector && (
-        <WalletSelector
-          onWalletConnected={connectWallet}
-          onClose={() => setShowWalletSelector(false)}
-        />
-      )}
-
-      {/* Gas Fee Settings */}
-      {walletAddress && (
-        <>
-          <GasFeeInfo 
-            provider={provider} 
-            gasMultiplier={gasMultiplier}
-            onFeeUpdate={(feeInfo) => setGasFeeInfo(feeInfo)}
+        {/* Coin Pixel Animasi */}
+        <div style={{ margin: "14px auto 16px auto", minHeight: 120 }}>
+          <img
+            src="/coin_pixel.png"
+            alt="Coin"
+            style={{
+              width: 120,
+              height: 120,
+              display: "block",
+              imageRendering: "pixelated",
+              transition: "transform 1s cubic-bezier(.68,-0.55,.27,1.55)",
+              transform: animating ? "rotateY(720deg)" : "none"
+            }}
           />
-          <div style={{ marginBottom: 20, padding: "10px", background: "#1a1a1a", borderRadius: 8, border: "1px solid #333" }}>
-            <div style={{ ...fontPixel, fontSize: 12, color: "#fff", marginBottom: 8, textAlign: "center" }}>
-              Gas Fee Multiplier: {gasMultiplier}x
+        </div>
+
+        {/* Gas Fee Settings */}
+        {walletAddress && (
+          <>
+            <GasFeeInfo 
+              provider={provider} 
+              gasMultiplier={gasMultiplier}
+              onFeeUpdate={(feeInfo) => setGasFeeInfo(feeInfo)}
+            />
+            <div style={{ marginBottom: 20, padding: "10px", background: "#1a1a1a", borderRadius: 8, border: "1px solid #333" }}>
+              <div style={{ ...fontPixel, fontSize: 12, color: "#fff", marginBottom: 8, textAlign: "center" }}>
+                Gas Fee Multiplier: {gasMultiplier}x
+              </div>
+              <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
+                <input
+                  type="range"
+                  min="1.0"
+                  max="3.0"
+                  step="0.1"
+                  value={gasMultiplier}
+                  onChange={(e) => setGasMultiplier(parseFloat(e.target.value))}
+                  style={{
+                    flex: 1,
+                    height: 6,
+                    background: "#333",
+                    borderRadius: 3,
+                    outline: "none",
+                    cursor: "pointer"
+                  }}
+                />
+                <span style={{ ...fontPixel, fontSize: 10, color: "#16f06c", minWidth: 40 }}>
+                  {gasMultiplier}x
+                </span>
+              </div>
+              <div style={{ ...fontPixel, fontSize: 9, color: "#888", textAlign: "center" }}>
+                Higher gas fee = faster transaction
+              </div>
             </div>
-            <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
-              <input
-                type="range"
-                min="1.0"
-                max="3.0"
-                step="0.1"
-                value={gasMultiplier}
-                onChange={(e) => setGasMultiplier(parseFloat(e.target.value))}
-                style={{
-                  flex: 1,
-                  height: 6,
-                  background: "#333",
-                  borderRadius: 3,
-                  outline: "none",
-                  cursor: "pointer"
-                }}
-              />
-              <span style={{ ...fontPixel, fontSize: 10, color: "#16f06c", minWidth: 40 }}>
-                {gasMultiplier}x
-              </span>
-            </div>
-            <div style={{ ...fontPixel, fontSize: 9, color: "#888", textAlign: "center" }}>
-              Higher gas fee = faster transaction
-            </div>
-          </div>
-        </>
-      )}
+          </>
+        )}
 
         {/* Heads or tails */}
         <div style={{ ...fontPixel, margin: "10px 0 6px", fontSize: 15, color: "#fff", textAlign: "center" }}>
@@ -402,6 +887,9 @@ export default function DashboardOnchain() {
         <div style={{ ...fontPixel, margin: "16px 0 8px", fontSize: 15, color: "#fff", textAlign: "center" }}>
           Amount to bet
         </div>
+        <div style={{ ...fontPixel, margin: "4px 0 8px", fontSize: 10, color: "#888", textAlign: "center" }}>
+          min 0.001 IRYS max 0.1 IRYS
+        </div>
         <div style={{ display: "flex", gap: 14, marginBottom: 20, justifyContent: "center" }}>
           {betOptions.map(num => (
             <button
@@ -433,28 +921,41 @@ export default function DashboardOnchain() {
           or
         </div>
         <div style={{ display: "flex", justifyContent: "center", marginBottom: 20 }}>
-          <input
+                    <input
             type="number"
-            min={0.001}
-            step={0.01}
+              min="0.001"
+              max="0.1"
+              step="0.001"
             value={amount}
-            onChange={e => setAmount(Number(e.target.value))}
+              onChange={(e) => {
+                const value = parseFloat(e.target.value) || 0;
+                // Enforce min/max limits
+                if (value < 0.001) {
+                  setAmount(0.001);
+                } else if (value > 0.1) {
+                  setAmount(0.1);
+                } else {
+                  setAmount(value);
+                }
+              }}
+              disabled={loading}
             style={{
               ...fontPixel,
-              width: 90,
-              height: 38,
-              fontSize: 16,
-              background: "#222",
-              color: "#16f06c",
+                width: 120,
+                padding: "8px 12px",
+              background: "#111",
+              color: "#fff",
               border: "3px solid #16f06c",
               borderRadius: 7,
-              outline: "none",
-              padding: "0 10px",
-              textAlign: "center"
+                fontSize: 16,
+              textAlign: "center",
+              outline: "none"
             }}
           />
         </div>
-        {/* Tombol BET */}
+
+
+
         <div style={{ display: "flex", justifyContent: "center", marginTop: 26 }}>
           <button
             onClick={handleBet}
@@ -479,67 +980,9 @@ export default function DashboardOnchain() {
           </button>
         </div>
       </div>
-      {/* Riwayat Taruhan */}
-{walletAddress && betHistory.length > 0 && (
-  <div
-    style={{
-      width: "100%",
-      display: "flex",
-      justifyContent: "center",
-      marginTop: 20,
-      padding: "0 8px",
-    }}
-  >
-    <div
-      style={{
-        background: "rgba(0,0,0,0.6)",
-        borderRadius: 10,
-        width: "100%",
-        maxWidth: 520,
-        padding: "16px",
-        fontFamily: "'Press Start 2P', monospace",
-        fontSize: "14px",
-        color: "#16f06c",
-        lineHeight: "1.5em",
-        letterSpacing: "0.06em",
-        textAlign: "left",
-        boxShadow: "0 0 16px #16f06c66",
-        boxSizing: "border-box",
-      }}
-    >
-      {betHistory.slice(0, 10).map((entry, idx) => {
-        const display = `${walletAddress.slice(0,7)}…${walletAddress.slice(-4)}`;
-        const amount = entry.amount.toFixed(2);
-        const side = entry.side.toUpperCase();
-        const result = entry.win
-          ? <span style={{ color: "#10ff10", fontWeight: 700 }}>WIN</span>
-          : <span style={{ color: "#ff5555", fontWeight: 700 }}>LOSE</span>;
-        const block = entry.block.toString();
+      </div>
+      )}
 
-        return (
-          <div
-            key={idx}
-            style={{
-              padding: "2px 0",
-              borderBottom: idx < betHistory.length - 1 ? "1px solid #16f06c33" : "none",
-              display: "flex",
-              justifyContent: "space-between",
-            }}
-          >
-            <span>{display}</span>
-            <span>{amount} IRYS</span>
-            <span>{side}</span>
-            <span>{result}</span>
-            <span style={{ color: "#aaa", cursor: "pointer", textDecoration: "underline" }}
-  onClick={() => window.open(`https://testnet-explorer.irys.xyz/block/${block}`, "_blank")}>
-  {block}
-</span>
-          </div>
-        );
-      })}
-    </div>
-  </div>
-)}
 
       {/* ResultModal */}
       {showModal && (
@@ -552,6 +995,15 @@ export default function DashboardOnchain() {
           gasFeeInfo={gasFeeInfo}
         />
       )}
+
+      {/* WalletSelector Modal */}
+      {showWalletSelector && (
+        <WalletSelector
+          onWalletConnected={connectWallet}
+          onClose={() => setShowWalletSelector(false)}
+        />
+      )}
+      </div>
     </div>
   );
 }
