@@ -6,34 +6,32 @@ export async function getEnhancedGasFee(provider, multiplier = 1.5) {
     // Dapatkan fee data dari network
     const feeData = await provider.getFeeData();
     
-    // Hitung gas fee yang lebih tinggi
-    const enhancedMaxFeePerGas = feeData.maxFeePerGas 
-      ? ethers.parseUnits(
-          (ethers.formatUnits(feeData.maxFeePerGas, 'gwei') * multiplier).toString(), 
-          'gwei'
-        )
-      : null;
-    
-    const enhancedMaxPriorityFeePerGas = feeData.maxPriorityFeePerGas
-      ? ethers.parseUnits(
-          (ethers.formatUnits(feeData.maxPriorityFeePerGas, 'gwei') * multiplier).toString(), 
-          'gwei'
-        )
-      : null;
-    
-    const enhancedGasPrice = feeData.gasPrice
-      ? ethers.parseUnits(
-          (ethers.formatUnits(feeData.gasPrice, 'gwei') * multiplier).toString(), 
-          'gwei'
-        )
-      : null;
-
-    return {
-      maxFeePerGas: enhancedMaxFeePerGas,
-      maxPriorityFeePerGas: enhancedMaxPriorityFeePerGas,
-      gasPrice: enhancedGasPrice,
-      originalFeeData: feeData
-    };
+    // Prioritas: gunakan EIP-1559 jika tersedia, fallback ke legacy gasPrice
+    if (feeData.maxFeePerGas && feeData.maxPriorityFeePerGas) {
+      // EIP-1559 transaction
+      const enhancedMaxFeePerGas = feeData.maxFeePerGas * BigInt(Math.floor(multiplier * 1000)) / BigInt(1000);
+      const enhancedMaxPriorityFeePerGas = feeData.maxPriorityFeePerGas * BigInt(Math.floor(multiplier * 1000)) / BigInt(1000);
+      
+      return {
+        maxFeePerGas: enhancedMaxFeePerGas,
+        maxPriorityFeePerGas: enhancedMaxPriorityFeePerGas,
+        originalFeeData: feeData
+      };
+    } else if (feeData.gasPrice) {
+      // Legacy transaction
+      const enhancedGasPrice = feeData.gasPrice * BigInt(Math.floor(multiplier * 1000)) / BigInt(1000);
+      
+      return {
+        gasPrice: enhancedGasPrice,
+        originalFeeData: feeData
+      };
+    } else {
+      // Fallback jika tidak ada fee data
+      return {
+        gasPrice: ethers.parseUnits('50', 'gwei'),
+        originalFeeData: null
+      };
+    }
   } catch (error) {
     console.error('Error getting enhanced gas fee:', error);
     // Fallback ke gas price sederhana jika gagal
@@ -113,4 +111,4 @@ export function compareGasFees(originalFeeData, enhancedFeeData) {
   }
   
   return comparison;
-} 
+}
